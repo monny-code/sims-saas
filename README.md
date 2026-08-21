@@ -52,6 +52,18 @@ This project is prepared for a three-part deployment:
    - `VITE_SUPABASE_ANON_KEY`
    - `VITE_API_BASE_URL=https://your-render-backend-url.onrender.com/api/v1`
 
+### Cloudflare Pages frontend setup
+
+1. Import the repository into Cloudflare Pages.
+2. Set the production branch to `main`.
+3. Set the root directory to `/`.
+4. Set the build command to:
+   `npm install && npm run build --workspace frontend`
+5. Set the build output directory to:
+   `frontend/dist`
+6. Leave the deploy command empty. Do not use `npx wrangler deploy`; that command is for Workers and fails from this monorepo root.
+7. Add `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `VITE_API_BASE_URL` as Pages environment variables.
+
 ### Render backend setup
 
 1. Import the repo into Render.
