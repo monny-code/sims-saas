@@ -15,6 +15,10 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 export const app = express();
 
+// Render terminates TLS at one reverse proxy and forwards the client address
+// in X-Forwarded-For. This lets rate limiting identify the actual client.
+app.set('trust proxy', 1);
+
 app.use(
   cors({
     origin: env.corsOrigin,
