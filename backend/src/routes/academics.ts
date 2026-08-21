@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { getAcademicClasses, getAcademicYears, getAttendanceRecords, getExams, getMarks, getStreams, getSubjects, writeCollection } from '../services/firebaseDataStore.js';
+import { getAcademicClasses, getAcademicYears, getAttendanceRecords, getExams, getMarks, getStreams, getSubjects, getStudents, writeCollection } from '../services/firebaseDataStore.js';
 import { requireAuth, requirePermission, requireRole, type AuthenticatedRequest } from '../middleware/auth.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
@@ -46,10 +46,8 @@ router.get('/attendance', requireAuth, requirePermission('attendance.manage'), a
 router.post('/attendance', requireAuth, requirePermission('attendance.manage'), async (req: AuthenticatedRequest, res) => {
   const parsed = z.object({
     studentId: z.string().min(1),
-    studentName: z.string().min(1),
     date: z.string().min(1),
     status: z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']),
-    className: z.string().min(1),
     reason: z.string().optional(),
   }).safeParse(req.body);
 
@@ -57,16 +55,30 @@ router.post('/attendance', requireAuth, requirePermission('attendance.manage'), 
     return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
   }
 
+  const [students, records] = await Promise.all([getStudents(), getAttendanceRecords()]);
+  const student = students.find((entry) => entry.id === parsed.data.studentId);
+
+  if (!student || (req.user?.role !== 'SUPER_ADMIN' && student.schoolId !== req.user?.schoolId)) {
+    return sendError(res, 'Student not found', 404);
+  }
+
   const attendance = {
-    id: `att-${Date.now()}`,
-    schoolId: req.user?.schoolId ?? 's-1',
-    ...parsed.data,
+    id: records.find((record) => record.studentId === student.id && record.date === parsed.data.date && record.schoolId === student.schoolId)?.id ?? `att-${Date.now()}`,
+    schoolId: student.schoolId,
+    studentId: student.id,
+    studentName: `${student.firstName} ${student.lastName}`,
+    date: parsed.data.date,
+    status: parsed.data.status,
+    className: student.className ?? '',
+    reason: parsed.data.reason ?? '',
   };
 
-  const records = await getAttendanceRecords();
-  await writeCollection('attendanceRecords', [...records, attendance]);
+  const nextRecords = records.some((record) => record.id === attendance.id)
+    ? records.map((record) => record.id === attendance.id ? attendance : record)
+    : [...records, attendance];
+  await writeCollection('attendanceRecords', nextRecords);
 
-  return sendSuccess(res, { attendance }, 'Attendance recorded', 201);
+  return sendSuccess(res, { attendance }, 'Attendance recorded', records.some((record) => record.id === attendance.id) ? 200 : 201);
 });
 
 router.get('/exams', requireAuth, async (req: AuthenticatedRequest, res) => {
@@ -84,11 +96,9 @@ router.get('/marks', requireAuth, requirePermission('marks.manage'), async (req:
 router.post('/marks', requireAuth, requirePermission('marks.manage'), async (req: AuthenticatedRequest, res) => {
   const parsed = z.object({
     studentId: z.string().min(1),
-    studentName: z.string().min(1),
     subject: z.string().min(1),
     examId: z.string().min(1),
     marks: z.number().min(0).max(100),
-    grade: z.string().min(1),
     remarks: z.string().optional(),
   }).safeParse(req.body);
 
@@ -96,17 +106,36 @@ router.post('/marks', requireAuth, requirePermission('marks.manage'), async (req
     return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
   }
 
+  const [students, exams, subjects, entries] = await Promise.all([getStudents(), getExams(), getSubjects(), getMarks()]);
+  const student = students.find((entry) => entry.id === parsed.data.studentId);
+  const exam = exams.find((entry) => entry.id === parsed.data.examId);
+  const subject = subjects.find((entry) => entry.name === parsed.data.subject || entry.code === parsed.data.subject);
+
+  if (!student || !exam || !subject || student.schoolId !== exam.schoolId || exam.schoolId !== subject.schoolId
+    || (req.user?.role !== 'SUPER_ADMIN' && student.schoolId !== req.user?.schoolId)) {
+    return sendError(res, 'Student, exam, or subject not found', 404);
+  }
+
+  const grade = parsed.data.marks >= 75 ? 'A' : parsed.data.marks >= 60 ? 'B' : parsed.data.marks >= 45 ? 'C' : parsed.data.marks >= 30 ? 'D' : 'F';
+  const existing = entries.find((entry) => entry.studentId === student.id && entry.examId === exam.id && entry.subject === subject.name && entry.schoolId === student.schoolId);
   const entry = {
-    id: `mk-${Date.now()}`,
-    schoolId: req.user?.schoolId ?? 's-1',
-    ...parsed.data,
+    id: existing?.id ?? `mk-${Date.now()}`,
+    schoolId: student.schoolId,
+    studentId: student.id,
+    studentName: `${student.firstName} ${student.lastName}`,
+    subject: subject.name,
+    examId: exam.id,
+    marks: parsed.data.marks,
+    grade,
     remarks: parsed.data.remarks ?? '',
   };
 
-  const entries = await getMarks();
-  await writeCollection('marks', [...entries, entry]);
+  const nextEntries = existing
+    ? entries.map((mark) => mark.id === existing.id ? entry : mark)
+    : [...entries, entry];
+  await writeCollection('marks', nextEntries);
 
-  return sendSuccess(res, { mark: entry }, 'Marks recorded', 201);
+  return sendSuccess(res, { mark: entry }, 'Marks recorded', existing ? 200 : 201);
 });
 
 router.post('/grades', requireAuth, requireRole('SCHOOL_ADMIN', 'SUPER_ADMIN'), (req: AuthenticatedRequest, res) => {

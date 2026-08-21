@@ -16,6 +16,7 @@ import {
   users,
 } from '../data/demoData.js';
 import { supabase, isSupabaseEnabled } from '../config/supabase.js';
+import { env } from '../config/env.js';
 
 const tableName = (collectionName: string) => collectionName.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 const toCamelCase = (value: string) => value.replace(/_([a-z])/g, (_match, letter: string) => letter.toUpperCase());
@@ -31,9 +32,17 @@ const toDatabaseRow = (row: Record<string, unknown>) => Object.fromEntries(
     .map(([key, value]) => [toSnakeCase(key), value]),
 );
 
+const localCollections = new Map<string, { id: string }[]>();
+
 const seedCollection = async <T extends { id: string }>(collectionName: string, fallback: T[]): Promise<T[]> => {
   if (!isSupabaseEnabled || !supabase) {
-    return fallback;
+    const existing = localCollections.get(collectionName);
+    if (!existing) {
+      localCollections.set(collectionName, [...fallback]);
+      return [...fallback];
+    }
+
+    return existing as T[];
   }
 
   const table = tableName(collectionName);
@@ -46,6 +55,11 @@ const seedCollection = async <T extends { id: string }>(collectionName: string, 
 
   if (data && data.length > 0) {
     return data.map((row) => toAppRow<T>(row as Record<string, unknown>));
+  }
+
+  // Production data must never be silently populated with demo records.
+  if (!env.seedDemoData) {
+    return [];
   }
 
   const { error: insertError } = await supabase.from(table).upsert(fallback.map((item) => toDatabaseRow(item as Record<string, unknown>)), {
@@ -61,7 +75,8 @@ const seedCollection = async <T extends { id: string }>(collectionName: string, 
 
 export const writeCollection = async <T extends { id: string }>(collectionName: string, items: T[]) => {
   if (!isSupabaseEnabled || !supabase) {
-    return items;
+    localCollections.set(collectionName, [...items]);
+    return [...items];
   }
 
   const { error } = await supabase.from(tableName(collectionName)).upsert(items.map((item) => toDatabaseRow(item as Record<string, unknown>)), {
@@ -82,6 +97,8 @@ export const getSchools = async () => seedCollection<typeof schools[number]>('sc
 export const getUsers = async () => seedCollection<typeof users[number]>('users', users);
 export const getStudents = async () => seedCollection<typeof students[number]>('students', students);
 export const getGuardians = async () => seedCollection<typeof guardians[number]>('guardians', guardians);
+export type StudentGuardian = { id: string; studentId: string; guardianId: string; relationship: string; isPrimary: boolean };
+export const getStudentGuardians = async () => listCollection<StudentGuardian>('studentGuardians', []);
 export const getAcademicYears = async () => seedCollection<typeof academicYears[number]>('academicYears', academicYears);
 export const getAcademicClasses = async () => seedCollection<typeof academicClasses[number]>('academicClasses', academicClasses);
 export const getStreams = async () => seedCollection<typeof streams[number]>('streams', streams);
@@ -105,6 +122,7 @@ export const ensureSupabaseSeeded = async () => {
     getUsers(),
     getStudents(),
     getGuardians(),
+    getStudentGuardians(),
     getAcademicYears(),
     getAcademicClasses(),
     getStreams(),

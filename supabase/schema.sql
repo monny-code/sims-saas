@@ -40,6 +40,7 @@ create unique index if not exists idx_users_email_unique on public.users(lower(e
 create table if not exists public.guardians (
   id text primary key,
   school_id text not null references public.schools(id) on delete cascade,
+  user_id text unique references public.users(id) on delete set null,
   name text not null,
   relationship text not null,
   phone text not null,
@@ -51,6 +52,7 @@ create table if not exists public.guardians (
 );
 
 create index if not exists idx_guardians_school_id on public.guardians(school_id);
+create index if not exists idx_guardians_user_id on public.guardians(user_id);
 
 create table if not exists public.students (
   id text primary key,
@@ -77,6 +79,18 @@ create table if not exists public.students (
 
 create index if not exists idx_students_school_id on public.students(school_id);
 create index if not exists idx_students_admission_number on public.students(admission_number);
+
+create table if not exists public.student_guardians (
+  id text primary key,
+  student_id text not null references public.students(id) on delete cascade,
+  guardian_id text not null references public.guardians(id) on delete cascade,
+  relationship text not null,
+  is_primary boolean not null default false,
+  created_at timestamptz not null default now(),
+  unique (student_id, guardian_id)
+);
+
+create index if not exists idx_student_guardians_guardian_id on public.student_guardians(guardian_id);
 
 create table if not exists public.academic_years (
   id text primary key,
@@ -277,47 +291,21 @@ create trigger trg_receipts_updated_at
 before update on public.receipts
 for each row execute function public.set_updated_at();
 
-create policy "Allow authenticated access to public tables" on public.schools
-for all using (true) with check (true);
-
-create policy "Allow authenticated access to public tables" on public.users
-for all using (true) with check (true);
-
-create policy "Allow authenticated access to public tables" on public.guardians
-for all using (true) with check (true);
-
-create policy "Allow authenticated access to public tables" on public.students
-for all using (true) with check (true);
-
-create policy "Allow authenticated access to public tables" on public.academic_years
-for all using (true) with check (true);
-
-create policy "Allow authenticated access to public tables" on public.academic_classes
-for all using (true) with check (true);
-
-create policy "Allow authenticated access to public tables" on public.streams
-for all using (true) with check (true);
-
-create policy "Allow authenticated access to public tables" on public.subjects
-for all using (true) with check (true);
-
-create policy "Allow authenticated access to public tables" on public.attendance_records
-for all using (true) with check (true);
-
-create policy "Allow authenticated access to public tables" on public.exams
-for all using (true) with check (true);
-
-create policy "Allow authenticated access to public tables" on public.marks
-for all using (true) with check (true);
-
-create policy "Allow authenticated access to public tables" on public.fee_structures
-for all using (true) with check (true);
-
-create policy "Allow authenticated access to public tables" on public.invoices
-for all using (true) with check (true);
-
-create policy "Allow authenticated access to public tables" on public.fee_payments
-for all using (true) with check (true);
-
-create policy "Allow authenticated access to public tables" on public.receipts
-for all using (true) with check (true);
+-- The web client uses Supabase only for Auth. Application records are served
+-- through the API after its RBAC and tenant checks, so browser table access is
+-- deliberately denied. The server's service-role client bypasses RLS.
+alter table public.schools enable row level security;
+alter table public.users enable row level security;
+alter table public.guardians enable row level security;
+alter table public.students enable row level security;
+alter table public.academic_years enable row level security;
+alter table public.academic_classes enable row level security;
+alter table public.streams enable row level security;
+alter table public.subjects enable row level security;
+alter table public.attendance_records enable row level security;
+alter table public.exams enable row level security;
+alter table public.marks enable row level security;
+alter table public.fee_structures enable row level security;
+alter table public.invoices enable row level security;
+alter table public.fee_payments enable row level security;
+alter table public.receipts enable row level security;

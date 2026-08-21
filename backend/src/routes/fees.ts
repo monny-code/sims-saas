@@ -4,7 +4,7 @@ import type { Invoice } from '../data/demoData.js';
 import { requireAuth, type AuthenticatedRequest } from '../middleware/auth.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 import { mockPaymentProvider } from '../services/mockPaymentProvider.js';
-import { getFeePayments, getFeeStructures, getInvoices, getReceipts, getStudents, writeCollection } from '../services/firebaseDataStore.js';
+import { getFeePayments, getFeeStructures, getGuardians, getInvoices, getReceipts, getStudentGuardians, getStudents, writeCollection } from '../services/firebaseDataStore.js';
 
 const router = Router();
 
@@ -21,13 +21,17 @@ const filterBySchool = <T extends { schoolId: string }>(req: AuthenticatedReques
   return items.filter((item) => item.schoolId === req.user?.schoolId);
 };
 
-const filterStudentAccess = (req: AuthenticatedRequest, invoicesList: Invoice[], students: { id: string; schoolId: string }[]) => {
+const filterStudentAccess = async (req: AuthenticatedRequest, invoicesList: Invoice[], students: { id: string; schoolId: string }[]) => {
   if (req.user?.role === 'SUPER_ADMIN' || req.user?.role === 'SCHOOL_ADMIN' || req.user?.role === 'ACCOUNTANT') {
     return invoicesList;
   }
 
   if (req.user?.role === 'PARENT') {
-    const children = students.filter((student) => student.schoolId === req.user?.schoolId);
+    const [guardians, links] = await Promise.all([getGuardians(), getStudentGuardians()]);
+    const guardianIds = guardians
+      .filter((guardian) => guardian.schoolId === req.user?.schoolId && ((guardian as { userId?: string }).userId === req.user?.id || guardian.email?.toLowerCase() === req.user?.email.toLowerCase()))
+      .map((guardian) => guardian.id);
+    const children = students.filter((student) => links.some((link) => link.studentId === student.id && guardianIds.includes(link.guardianId)));
     return invoicesList.filter((invoice) => children.some((student) => student.id === invoice.studentId));
   }
 
@@ -45,7 +49,7 @@ router.get('/structures', requireAuth, async (req: AuthenticatedRequest, res) =>
 
 router.get('/invoices', requireAuth, async (req: AuthenticatedRequest, res) => {
   const students = await getStudents();
-  const data = filterStudentAccess(req, filterBySchool(req, await getInvoices()), students);
+  const data = await filterStudentAccess(req, filterBySchool(req, await getInvoices()), students);
   return sendSuccess(res, { invoices: data }, 'Invoices loaded');
 });
 

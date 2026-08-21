@@ -37,6 +37,7 @@ export const env = {
   supabaseAnonKey,
   supabaseServiceRoleKey,
   supabaseJwksUrl,
+  seedDemoData: process.env.SEED_DEMO_DATA === 'true',
   useFirebase: process.env.USE_FIREBASE === 'true',
   firebaseProjectId: process.env.FIREBASE_PROJECT_ID ?? parseServiceAccount()?.project_id ?? '',
   firebaseClientEmail: process.env.FIREBASE_CLIENT_EMAIL ?? parseServiceAccount()?.client_email ?? '',

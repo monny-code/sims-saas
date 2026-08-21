@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, type AuthenticatedRequest } from '../middleware/auth.js';
-import { getAttendanceRecords, getFeePayments, getInvoices, getSchools, getStudents, getUsers } from '../services/firebaseDataStore.js';
+import { getAttendanceRecords, getFeePayments, getGuardians, getInvoices, getSchools, getStudentGuardians, getStudents, getUsers } from '../services/firebaseDataStore.js';
 import { sendSuccess } from '../utils/response.js';
 
 const router = Router();
@@ -82,9 +82,12 @@ router.get('/parent-portal', requireAuth, async (req: AuthenticatedRequest, res)
     );
   }
 
-  const [students, invoices, feePayments] = await Promise.all([getStudents(), getInvoices(), getFeePayments()]);
+  const [students, invoices, feePayments, guardians, links, attendance] = await Promise.all([getStudents(), getInvoices(), getFeePayments(), getGuardians(), getStudentGuardians(), getAttendanceRecords()]);
   const schoolId = req.user.schoolId;
-  const children = students.filter((student) => student.schoolId === schoolId).slice(0, 2);
+  const parentGuardianIds = guardians
+    .filter((guardian) => guardian.schoolId === schoolId && ((guardian as { userId?: string }).userId === req.user?.id || guardian.email?.toLowerCase() === req.user?.email.toLowerCase()))
+    .map((guardian) => guardian.id);
+  const children = students.filter((student) => student.schoolId === schoolId && links.some((link) => link.studentId === student.id && parentGuardianIds.includes(link.guardianId)));
   const invoicesForChild = invoices.filter((invoice) => invoice.schoolId === schoolId && children.some((child) => child.id === invoice.studentId));
   const paymentsForChild = feePayments.filter((payment) => payment.schoolId === schoolId && children.some((child) => child.id === payment.studentId));
 
@@ -95,12 +98,12 @@ router.get('/parent-portal', requireAuth, async (req: AuthenticatedRequest, res)
         id: child.id,
         name: `${child.firstName} ${child.lastName}`,
         className: child.className ?? 'Form 1',
-        attendance: 94,
+        attendance: (() => {
+          const childRecords = attendance.filter((record) => record.studentId === child.id);
+          return childRecords.length ? Math.round((childRecords.filter((record) => record.status === 'PRESENT').length / childRecords.length) * 100) : 0;
+        })(),
       })),
-      notices: [
-        'School term fee payment reminder',
-        'Parent meeting scheduled for Friday at 5:00 PM',
-      ],
+      notices: [],
       feeSummary: {
         due: invoicesForChild.reduce((sum, invoice) => sum + (invoice.status === 'PAID' ? 0 : invoice.total), 0),
         paid: paymentsForChild.reduce((sum, payment) => sum + payment.amount, 0),

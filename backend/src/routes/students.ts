@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { type DemoStudent } from '../data/demoData.js';
-import { getGuardians, getSchools, getStudents, writeCollection } from '../services/firebaseDataStore.js';
+import { getGuardians, getSchools, getStudentGuardians, getStudents, getUsers, writeCollection } from '../services/firebaseDataStore.js';
 import { requireAuth, requirePermission, requireRole, type AuthenticatedRequest } from '../middleware/auth.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 const router = Router();
 
 const studentSchema = z.object({
+  admissionNumber: z.string().min(1).optional(),
+  admissionDate: z.string().min(1).optional(),
   firstName: z.string().min(2),
   middleName: z.string().optional(),
   lastName: z.string().min(2),
@@ -21,6 +23,13 @@ const studentSchema = z.object({
   className: z.string().optional(),
   stream: z.string().optional(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'GRADUATED', 'TRANSFERRED']).optional(),
+  guardian: z.object({
+    name: z.string().min(2),
+    relationship: z.string().min(2),
+    phone: z.string().min(5),
+    email: z.string().email().optional(),
+    address: z.string().optional(),
+  }).optional(),
 });
 
 router.get('/', requireAuth, requirePermission('students.manage'), async (req: AuthenticatedRequest, res) => {
@@ -32,7 +41,7 @@ router.get('/', requireAuth, requirePermission('students.manage'), async (req: A
 });
 
 router.get('/:id', requireAuth, requirePermission('students.manage'), async (req: AuthenticatedRequest, res) => {
-  const [students, schools, guardians] = await Promise.all([getStudents(), getSchools(), getGuardians()]);
+  const [students, schools, guardians, links] = await Promise.all([getStudents(), getSchools(), getGuardians(), getStudentGuardians()]);
   const target = students.find((student) => student.id === req.params.id);
 
   if (!target) {
@@ -43,7 +52,7 @@ router.get('/:id', requireAuth, requirePermission('students.manage'), async (req
     return sendError(res, 'Forbidden: student access denied', 403);
   }
 
-  const studentGuardians = guardians.filter((guardian) => guardian.schoolId === target.schoolId);
+  const studentGuardians = guardians.filter((guardian) => links.some((link) => link.studentId === target.id && link.guardianId === guardian.id));
 
   return sendSuccess(
     res,
@@ -63,24 +72,64 @@ router.post('/', requireAuth, requireRole('SCHOOL_ADMIN', 'SUPER_ADMIN'), async 
     return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
   }
 
-  const [students] = await Promise.all([getStudents()]);
+  const [students, guardians, links, users, schools] = await Promise.all([getStudents(), getGuardians(), getStudentGuardians(), getUsers(), getSchools()]);
   const schoolId = req.user?.role === 'SUPER_ADMIN' ? req.body.schoolId ?? 's-1' : req.user?.schoolId ?? 's-1';
+
+  if (!schools.some((school) => school.id === schoolId)) {
+    return sendError(res, 'School not found', 404);
+  }
+
+  if (students.some((student) => student.schoolId === schoolId && student.admissionNumber === parsed.data.admissionNumber)) {
+    return sendError(res, 'Admission number already exists', 409);
+  }
+
+  const { guardian, ...studentFields } = parsed.data;
   const nextStudent: DemoStudent = {
     id: `st-${Date.now()}`,
     schoolId,
-    admissionNumber: `ADM-${Date.now()}`,
-    admissionDate: new Date().toISOString().slice(0, 10),
+    admissionNumber: studentFields.admissionNumber ?? `ADM-${Date.now()}`,
+    admissionDate: studentFields.admissionDate ?? new Date().toISOString().slice(0, 10),
     status: 'ACTIVE',
-    ...parsed.data,
+    ...studentFields,
   };
+  const student = nextStudent;
 
-  const nextStudents = [...students, nextStudent];
+  const nextStudents = [...students, student];
   await writeCollection('students', nextStudents);
 
-  return sendSuccess(res, { student: nextStudent }, 'Student created', 201);
+  if (guardian) {
+    const matchingParent = guardian.email
+      ? users.find((user) => user.role === 'PARENT' && user.email.toLowerCase() === guardian.email?.toLowerCase())
+      : undefined;
+    const existingGuardian = guardians.find((entry) => entry.schoolId === schoolId && entry.email?.toLowerCase() === guardian.email?.toLowerCase());
+    const guardianRecord = existingGuardian ?? {
+      id: `g-${Date.now()}`,
+      schoolId,
+      ...guardian,
+      userId: matchingParent?.id,
+    };
+    if (!existingGuardian) await writeCollection('guardians', [...guardians, guardianRecord]);
+    if (!links.some((link) => link.studentId === student.id && link.guardianId === guardianRecord.id)) {
+      await writeCollection('studentGuardians', [...links, {
+        id: `sg-${Date.now()}`,
+        studentId: student.id,
+        guardianId: guardianRecord.id,
+        relationship: guardian.relationship,
+        isPrimary: true,
+      }]);
+    }
+  }
+
+  return sendSuccess(res, { student }, 'Student created', 201);
 });
 
 router.patch('/:id', requireAuth, requirePermission('students.manage'), async (req: AuthenticatedRequest, res) => {
+  const parsed = studentSchema.partial().safeParse(req.body);
+
+  if (!parsed.success) {
+    return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
+  }
+
   const students = await getStudents();
   const index = students.findIndex((student) => student.id === req.params.id);
 
@@ -94,9 +143,10 @@ router.patch('/:id', requireAuth, requirePermission('students.manage'), async (r
     return sendError(res, 'Forbidden: student access denied', 403);
   }
 
+  const { guardian: _guardian, ...studentFields } = parsed.data;
   const nextStudent = {
     ...target,
-    ...req.body,
+    ...studentFields,
   };
 
   const nextStudents = [...students];
@@ -120,10 +170,12 @@ router.delete('/:id', requireAuth, requireRole('SCHOOL_ADMIN', 'SUPER_ADMIN'), a
     return sendError(res, 'Forbidden: student access denied', 403);
   }
 
-  const nextStudents = students.filter((student) => student.id !== req.params.id);
+  const nextStudents = students.map((student) => student.id === req.params.id
+    ? { ...student, status: 'INACTIVE' as const }
+    : student);
   await writeCollection('students', nextStudents);
 
-  return sendSuccess(res, { deletedId: req.params.id }, 'Student deleted');
+  return sendSuccess(res, { student: nextStudents.find((student) => student.id === req.params.id) }, 'Student deactivated');
 });
 
 export default router;
