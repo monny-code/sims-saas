@@ -20,8 +20,16 @@ const SchoolManagement = () => {
   useEffect(() => {
     const loadStudents = async () => {
       try {
-        const token = 'demo-token';
-        const response = await apiFetch<{ students: Student[] }>('/students?schoolId=s-1', {
+        const token = localStorage.getItem('sims_token');
+
+        if (!token) {
+          throw new Error('No active session was found. Please log in again.');
+        }
+
+        const user = JSON.parse(localStorage.getItem('sims_user') ?? 'null') as { role?: string; schoolId?: string } | null;
+        const query = user?.role === 'SUPER_ADMIN' && user.schoolId ? `?schoolId=${user.schoolId}` : '';
+
+        const response = await apiFetch<{ students: Student[] }>(`/students${query}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setStudents(response.students);
@@ -32,7 +40,7 @@ const SchoolManagement = () => {
       }
     };
 
-    loadStudents();
+    void loadStudents();
   }, []);
 
   return (

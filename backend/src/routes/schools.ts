@@ -97,4 +97,36 @@ router.post('/', requireAuth, requireRole('SUPER_ADMIN'), async (req: Authentica
   return sendSuccess(res, { school }, 'School created', 201);
 });
 
+router.put('/:schoolId', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const parsed = setSchoolSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
+  }
+
+  const requestedSchoolId = req.params.schoolId;
+
+  if (req.user?.role !== 'SUPER_ADMIN' && req.user?.schoolId !== requestedSchoolId) {
+    return sendError(res, 'Forbidden: school access denied', 403);
+  }
+
+  const schools = await getSchools();
+  const schoolIndex = schools.findIndex((candidate) => candidate.id === requestedSchoolId);
+
+  if (schoolIndex === -1) {
+    return sendError(res, 'School not found', 404);
+  }
+
+  const nextSchool = {
+    ...schools[schoolIndex],
+    ...parsed.data,
+  };
+
+  const nextSchools = [...schools];
+  nextSchools[schoolIndex] = nextSchool;
+  await writeCollection('schools', nextSchools);
+
+  return sendSuccess(res, { school: nextSchool }, 'School updated');
+});
+
 export default router;

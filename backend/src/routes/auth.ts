@@ -3,8 +3,10 @@ import bcrypt from 'bcryptjs';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import { z } from 'zod';
 import { env } from '../config/env.js';
-import { type DemoUser } from '../data/demoData.js';
-import { getSchools, getUsers } from '../services/firebaseDataStore.js';
+import { hasSupabaseAdmin, isSupabaseEnabled, supabase } from '../config/supabase.js';
+import { type DemoUser, rolePermissions } from '../data/demoData.js';
+import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.js';
+import { getSchools, getUsers, writeCollection } from '../services/firebaseDataStore.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
 const router = Router();
@@ -12,6 +14,14 @@ const router = Router();
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
+});
+
+const registerSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  password: z.string().min(8),
+  role: z.enum(['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'ACCOUNTANT', 'RECEPTIONIST', 'LIBRARIAN', 'PARENT', 'STUDENT']).optional(),
+  schoolId: z.string().optional(),
 });
 
 const signToken = (user: DemoUser) => {
@@ -33,6 +43,9 @@ const signToken = (user: DemoUser) => {
 };
 
 router.post('/login', async (req, res) => {
+  if (isSupabaseEnabled) {
+    return sendError(res, 'Sign in with Supabase Auth and send its access token to /auth/me', 400);
+  }
   const parsed = loginSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -69,44 +82,147 @@ router.post('/login', async (req, res) => {
   );
 });
 
-router.get('/me', async (req, res) => {
-  const authHeader = req.headers.authorization;
+router.post('/register', async (req, res) => {
+  if (isSupabaseEnabled) {
+    return sendError(res, 'Accounts are created by a school administrator', 403);
+  }
+  const parsed = registerSchema.safeParse(req.body);
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return sendError(res, 'Unauthorized', 401);
+  if (!parsed.success) {
+    return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
   }
 
-  try {
-    const token = authHeader.replace('Bearer ', '');
-    const payload = jwt.verify(token, env.jwtSecret) as {
-      sub: string;
-      email: string;
-      role: DemoUser['role'];
-      schoolId: string;
-      permissions: string[];
-    };
+  const { name, email, password, role = 'PARENT', schoolId } = parsed.data;
+  const users = await getUsers();
+  const schools = await getSchools();
+  const existingUser = users.find((candidate) => candidate.email.toLowerCase() === email.toLowerCase());
 
-    const [users, schools] = await Promise.all([getUsers(), getSchools()]);
-    const user = users.find((candidate) => candidate.id === payload.sub);
+  if (existingUser) {
+    return sendError(res, 'A user with this email already exists', 409);
+  }
 
-    if (!user) {
-      return sendError(res, 'User not found', 404);
-    }
+  const targetSchoolId = schoolId ?? schools[0]?.id ?? 's-1';
+  const resolvedSchool = schools.find((candidate) => candidate.id === targetSchoolId);
 
-    const school = schools.find((candidate) => candidate.id === user.schoolId);
+  if (!resolvedSchool) {
+    return sendError(res, 'School not found', 404);
+  }
 
-    return sendSuccess(res, {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      schoolId: user.schoolId,
-      name: user.name,
-      permissions: payload.permissions.length ? payload.permissions : user.permissions,
-      school: school ?? null,
+  const newUser: DemoUser = {
+    id: `u-${Date.now()}`,
+    schoolId: targetSchoolId,
+    name,
+    email,
+    passwordHash: bcrypt.hashSync(password, 10),
+    role,
+    status: 'active',
+    permissions: rolePermissions[role] ?? [],
+  };
+
+  const nextUsers = [...users, newUser];
+  await writeCollection('users', nextUsers);
+
+  const token = signToken(newUser);
+
+  return sendSuccess(
+    res,
+    {
+      token,
+      user: {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        schoolId: newUser.schoolId,
+        permissions: newUser.permissions,
+      },
+      school: resolvedSchool,
+    },
+    'Registration successful',
+    201,
+  );
+});
+
+router.get('/users', requireAuth, requireRole('SUPER_ADMIN', 'SCHOOL_ADMIN'), async (req: AuthenticatedRequest, res) => {
+  const users = await getUsers();
+  const visibleUsers = req.user?.role === 'SUPER_ADMIN'
+    ? users
+    : users.filter((candidate) => candidate.schoolId === req.user?.schoolId);
+
+  return sendSuccess(
+    res,
+    {
+      users: visibleUsers.map(({ passwordHash, ...user }) => user),
+    },
+    'Users loaded',
+  );
+});
+
+const managedRoleSchema = z.enum(['SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'ACCOUNTANT', 'RECEPTIONIST', 'LIBRARIAN', 'PARENT', 'STUDENT']);
+const createManagedUserSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  password: z.string().min(8),
+  role: managedRoleSchema,
+  schoolId: z.string().optional(),
+});
+const updateManagedUserSchema = z.object({
+  name: z.string().min(2).optional(),
+  role: managedRoleSchema.optional(),
+  status: z.enum(['active', 'inactive']).optional(),
+});
+
+const canManageUser = (actor: DemoUser, target: DemoUser) =>
+  actor.role === 'SUPER_ADMIN' || (target.schoolId === actor.schoolId && target.role !== 'SUPER_ADMIN');
+
+router.post('/users', requireAuth, requireRole('SUPER_ADMIN', 'SCHOOL_ADMIN'), async (req: AuthenticatedRequest, res) => {
+  const parsed = createManagedUserSchema.safeParse(req.body);
+  if (!parsed.success) return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+
+  const schoolId = req.user.role === 'SUPER_ADMIN' ? (parsed.data.schoolId ?? req.user.schoolId) : req.user.schoolId;
+  const [users, schools] = await Promise.all([getUsers(), getSchools()]);
+  if (!schools.some((school) => school.id === schoolId)) return sendError(res, 'School not found', 404);
+  if (users.some((user) => user.email.toLowerCase() === parsed.data.email.toLowerCase())) return sendError(res, 'A user with this email already exists', 409);
+
+  let id = `u-${Date.now()}`;
+  if (isSupabaseEnabled) {
+    if (!hasSupabaseAdmin || !supabase) return sendError(res, 'SUPABASE_SERVICE_ROLE_KEY is required to manage users', 503);
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: parsed.data.email,
+      password: parsed.data.password,
+      email_confirm: true,
+      user_metadata: { full_name: parsed.data.name },
     });
-  } catch {
-    return sendError(res, 'Invalid or expired token', 401);
+    if (error || !data.user) return sendError(res, error?.message ?? 'Unable to create Supabase user', 400);
+    id = data.user.id;
   }
+
+  const user: DemoUser = { id, schoolId, name: parsed.data.name, email: parsed.data.email, passwordHash: isSupabaseEnabled ? '' : bcrypt.hashSync(parsed.data.password, 10), role: parsed.data.role, status: 'active', permissions: rolePermissions[parsed.data.role] };
+  await writeCollection('users', [...users, user]);
+  const { passwordHash: _passwordHash, ...safeUser } = user;
+  return sendSuccess(res, { user: safeUser }, 'User created', 201);
+});
+
+router.patch('/users/:id', requireAuth, requireRole('SUPER_ADMIN', 'SCHOOL_ADMIN'), async (req: AuthenticatedRequest, res) => {
+  const parsed = updateManagedUserSchema.safeParse(req.body);
+  if (!parsed.success) return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+  const users = await getUsers();
+  const target = users.find((user) => user.id === req.params.id);
+  if (!target) return sendError(res, 'User not found', 404);
+  if (!canManageUser(req.user, target)) return sendError(res, 'Forbidden: school access denied', 403);
+  if (target.id === req.user.id && parsed.data.status === 'inactive') return sendError(res, 'You cannot deactivate your own account', 400);
+
+  const updated: DemoUser = { ...target, ...parsed.data, permissions: parsed.data.role ? rolePermissions[parsed.data.role] : target.permissions };
+  await writeCollection('users', users.map((user) => user.id === target.id ? updated : user));
+  const { passwordHash: _passwordHash, ...safeUser } = updated;
+  return sendSuccess(res, { user: safeUser }, 'User updated');
+});
+
+router.get('/me', requireAuth, (req: AuthenticatedRequest, res) => {
+  if (!req.user) return sendError(res, 'Unauthorized', 401);
+  return sendSuccess(res, { ...req.user, passwordHash: undefined, school: req.school ?? null });
 });
 
 export default router;

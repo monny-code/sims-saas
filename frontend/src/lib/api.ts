@@ -3,10 +3,12 @@ const resolvedApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '/api/v1').repl
 export const API_BASE_URL = resolvedApiBaseUrl;
 
 export const apiFetch = async <T>(path: string, options: RequestInit = {}): Promise<T> => {
+  const token = localStorage.getItem('sims_token');
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers ?? {}),
     },
   });

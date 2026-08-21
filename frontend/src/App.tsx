@@ -1,12 +1,74 @@
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, type ReactNode, useState } from 'react';
 import { apiFetch } from './lib/api';
+import { supabase, supabaseEnabled } from './lib/supabaseClient';
 import AcademicOverview from './pages/AcademicOverview';
 import FinanceOverview from './pages/FinanceOverview';
 import PortalDashboard from './pages/PortalDashboard';
 import ReportsDashboard from './pages/ReportsDashboard';
 import SchoolManagement from './pages/SchoolManagement';
 import SettingsPage from './pages/SettingsPage';
+import UserManagementPage from './pages/UserManagementPage';
+
+type SessionUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  schoolId: string;
+  permissions: string[];
+};
+
+const getSessionUser = (): SessionUser | null => {
+  const rawUser = localStorage.getItem('sims_user');
+
+  if (!rawUser) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawUser) as SessionUser;
+  } catch {
+    localStorage.removeItem('sims_user');
+    return null;
+  }
+};
+
+const defaultRouteForRole = (role: string) => {
+  if (role === 'PARENT' || role === 'STUDENT') return '/portal';
+  if (['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(role)) return '/students';
+  if (role === 'TEACHER') return '/academics';
+  if (role === 'ACCOUNTANT') return '/fees';
+  return '/reports';
+};
+
+const ProtectedRoute = ({ children, allowedRoles }: { children: ReactNode; allowedRoles?: string[] }) => {
+  const user = getSessionUser();
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to={defaultRouteForRole(user.role)} replace />;
+  }
+
+  return <>{children}</>;
+};
+
+const RoleRoute = ({ children, allowedRoles }: { children: ReactNode; allowedRoles: string[] }) => {
+  const user = getSessionUser();
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!allowedRoles.includes(user.role)) {
+    return <Navigate to={defaultRouteForRole(user.role)} replace />;
+  }
+
+  return <>{children}</>;
+};
 
 const LandingPage = () => (
   <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -171,15 +233,25 @@ const LoginPage = () => {
     setError('');
 
     try {
-      const result = await apiFetch<{ token: string; user: { id: string; name: string; email: string; role: string; schoolId: string; permissions: string[] }; school: { id: string; name: string } }>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
+      let result: { token: string; user: SessionUser; school: { id: string; name: string } | null };
+      if (supabaseEnabled && supabase) {
+        const { data, error: supabaseError } = await supabase.auth.signInWithPassword({ email, password });
+        if (supabaseError || !data.session) throw new Error(supabaseError?.message ?? 'Unable to create a Supabase session');
+        const token = data.session.access_token;
+        localStorage.setItem('sims_token', token);
+        const profile = await apiFetch<SessionUser & { school: { id: string; name: string } | null }>('/auth/me');
+        result = { token, user: profile, school: profile.school };
+      } else {
+        result = await apiFetch<{ token: string; user: SessionUser; school: { id: string; name: string } | null }>('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        });
+      }
 
       localStorage.setItem('sims_token', result.token);
       localStorage.setItem('sims_user', JSON.stringify(result.user));
       localStorage.setItem('sims_school', JSON.stringify(result.school));
-      navigate('/students');
+      navigate(defaultRouteForRole(result.user.role));
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'Login failed');
     } finally {
@@ -236,8 +308,93 @@ const LoginPage = () => {
           </button>
         </form>
 
+        <div className="mt-4 text-center">
+          <a href="/register" className="text-sm font-semibold text-brand-600">Create account</a>
+        </div>
+
         <div className="mt-5 rounded-xl bg-slate-50 p-3 text-center text-xs text-slate-600">
           Demo credentials: <span className="font-semibold">admin@example.com / Password123!</span>
+          {supabaseEnabled ? ' • Supabase Auth enabled' : ' • Local auth mode'}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RegisterPage = () => {
+  const navigate = useNavigate();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState('PARENT');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      if (supabaseEnabled) throw new Error('Ask a school administrator to create your account.');
+
+      const result = await apiFetch<{ token: string; user: { id: string; name: string; email: string; role: string; schoolId: string; permissions: string[] }; school: { id: string; name: string } }>('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ name, email, password, role }),
+      });
+
+      localStorage.setItem('sims_token', result.token);
+      localStorage.setItem('sims_user', JSON.stringify(result.user));
+      localStorage.setItem('sims_school', JSON.stringify(result.school));
+      navigate(role === 'PARENT' ? '/portal' : '/students');
+    } catch (registerError) {
+      setError(registerError instanceof Error ? registerError.message : 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+      <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-8 shadow-soft">
+        <div className="mb-6 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-xl font-bold text-white">S</div>
+          <h1 className="mt-4 text-2xl font-bold text-slate-900">Create account</h1>
+          <p className="mt-2 text-sm text-slate-500">Register a parent, teacher, or admin account</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="name" className="mb-1 block text-sm font-medium text-slate-700">Full name</label>
+            <input id="name" value={name} onChange={(event) => setName(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5" required />
+          </div>
+          <div>
+            <label htmlFor="register-email" className="mb-1 block text-sm font-medium text-slate-700">Email</label>
+            <input id="register-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5" required />
+          </div>
+          <div>
+            <label htmlFor="register-password" className="mb-1 block text-sm font-medium text-slate-700">Password</label>
+            <input id="register-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5" required />
+          </div>
+          <div>
+            <label htmlFor="role" className="mb-1 block text-sm font-medium text-slate-700">Role</label>
+            <select id="role" value={role} onChange={(event) => setRole(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <option value="PARENT">Parent</option>
+              <option value="STUDENT">Student</option>
+              <option value="TEACHER">Teacher</option>
+              <option value="SCHOOL_ADMIN">School Admin</option>
+            </select>
+          </div>
+
+          {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+
+          <button type="submit" disabled={loading} className="w-full rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white">
+            {loading ? 'Creating account...' : 'Create account'}
+          </button>
+        </form>
+
+        <div className="mt-4 text-center text-sm">
+          <a href="/login" className="font-semibold text-brand-600">Back to login</a>
         </div>
       </div>
     </div>
@@ -248,12 +405,14 @@ const App = () => (
   <Routes>
     <Route path="/" element={<LandingPage />} />
     <Route path="/login" element={<LoginPage />} />
-    <Route path="/students" element={<SchoolManagement />} />
-    <Route path="/academics" element={<AcademicOverview />} />
-    <Route path="/fees" element={<FinanceOverview />} />
-    <Route path="/portal" element={<PortalDashboard />} />
-    <Route path="/reports" element={<ReportsDashboard />} />
-    <Route path="/settings" element={<SettingsPage />} />
+    <Route path="/register" element={<RegisterPage />} />
+    <Route path="/students" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'RECEPTIONIST']}><SchoolManagement /></ProtectedRoute>} />
+    <Route path="/academics" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER']}><AcademicOverview /></ProtectedRoute>} />
+    <Route path="/fees" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT', 'PARENT', 'STUDENT']}><FinanceOverview /></ProtectedRoute>} />
+    <Route path="/portal" element={<ProtectedRoute allowedRoles={['PARENT', 'STUDENT']}><PortalDashboard /></ProtectedRoute>} />
+    <Route path="/reports" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'ACCOUNTANT']}><ReportsDashboard /></ProtectedRoute>} />
+    <Route path="/settings" element={<RoleRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN']}><SettingsPage /></RoleRoute>} />
+    <Route path="/users" element={<RoleRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN']}><UserManagementPage /></RoleRoute>} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
 );

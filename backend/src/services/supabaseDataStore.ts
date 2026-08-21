@@ -1,4 +1,3 @@
-import type { QueryData } from '@supabase/supabase-js';
 import {
   academicClasses,
   academicYears,
@@ -18,12 +17,23 @@ import {
 } from '../data/demoData.js';
 import { supabase, isSupabaseEnabled } from '../config/supabase.js';
 
+const tableName = (collectionName: string) => collectionName.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+const toCamelCase = (value: string) => value.replace(/_([a-z])/g, (_match, letter: string) => letter.toUpperCase());
+const toSnakeCase = (value: string) => value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+const toAppRow = <T>(row: Record<string, unknown>) => Object.fromEntries(
+  Object.entries(row).map(([key, value]) => [toCamelCase(key), value]),
+) as T;
+const toDatabaseRow = (row: Record<string, unknown>) => Object.fromEntries(
+  Object.entries(row).map(([key, value]) => [toSnakeCase(key), value]),
+);
+
 const seedCollection = async <T extends { id: string }>(collectionName: string, fallback: T[]): Promise<T[]> => {
   if (!isSupabaseEnabled || !supabase) {
     return fallback;
   }
 
-  const { data, error } = await supabase.from(collectionName).select('*');
+  const table = tableName(collectionName);
+  const { data, error } = await supabase.from(table).select('*');
 
   if (error) {
     console.warn(`Supabase fetch failed for ${collectionName}:`, error.message);
@@ -31,10 +41,10 @@ const seedCollection = async <T extends { id: string }>(collectionName: string, 
   }
 
   if (data && data.length > 0) {
-    return data as T[];
+    return data.map((row) => toAppRow<T>(row as Record<string, unknown>));
   }
 
-  const { error: insertError } = await supabase.from(collectionName).upsert(fallback as unknown as Record<string, unknown>[], {
+  const { error: insertError } = await supabase.from(table).upsert(fallback.map((item) => toDatabaseRow(item as Record<string, unknown>)), {
     onConflict: 'id',
   });
 
@@ -50,7 +60,7 @@ export const writeCollection = async <T extends { id: string }>(collectionName: 
     return items;
   }
 
-  const { error } = await supabase.from(collectionName).upsert(items as unknown as Record<string, unknown>[], {
+  const { error } = await supabase.from(tableName(collectionName)).upsert(items.map((item) => toDatabaseRow(item as Record<string, unknown>)), {
     onConflict: 'id',
   });
 

@@ -14,3 +14,4 @@ export const supabase = url && key
   : null;
 
 export const isSupabaseEnabled = Boolean(supabase);
+export const hasSupabaseAdmin = Boolean(url && env.supabaseServiceRoleKey);

@@ -1,4 +1,15 @@
 const SettingsPage = () => {
+  const sessionUser = (() => {
+    try {
+      const rawUser = localStorage.getItem('sims_user');
+      return rawUser ? JSON.parse(rawUser) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const canManageUsers = ['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(sessionUser?.role ?? '');
+
   const settings = [
     { label: 'School name', value: 'Example International School' },
     { label: 'Academic year', value: '2026' },
@@ -16,7 +27,12 @@ const SettingsPage = () => {
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">Settings</p>
             <h1 className="mt-2 text-3xl font-bold">School configuration</h1>
           </div>
-          <button className="rounded-xl bg-brand-600 px-5 py-3 font-semibold text-white shadow-soft">Save changes</button>
+          <div className="flex items-center gap-3">
+            {canManageUsers ? (
+              <a href="/users" className="rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium text-slate-700">Manage users</a>
+            ) : null}
+            <button className="rounded-xl bg-brand-600 px-5 py-3 font-semibold text-white shadow-soft">Save changes</button>
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
@@ -26,6 +42,9 @@ const SettingsPage = () => {
               <div className="rounded-xl px-3 py-2 hover:bg-slate-50">Billing</div>
               <div className="rounded-xl px-3 py-2 hover:bg-slate-50">Notifications</div>
               <div className="rounded-xl px-3 py-2 hover:bg-slate-50">Security</div>
+              {canManageUsers ? (
+                <a href="/users" className="block rounded-xl px-3 py-2 text-brand-600 hover:bg-slate-50">User management</a>
+              ) : null}
             </div>
           </aside>
 

@@ -33,6 +33,10 @@ create table if not exists public.users (
 create index if not exists idx_users_school_id on public.users(school_id);
 create index if not exists idx_users_email on public.users(email);
 
+-- Public profiles are the server-owned authorization source for Supabase Auth
+-- identities. New managed accounts use their auth.users UUID as this id.
+create unique index if not exists idx_users_email_unique on public.users(lower(email));
+
 create table if not exists public.guardians (
   id text primary key,
   school_id text not null references public.schools(id) on delete cascade,
