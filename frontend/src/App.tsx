@@ -42,6 +42,31 @@ const defaultRouteForRole = (role: string) => {
   return '/reports';
 };
 
+const LogoutButton = () => {
+  const navigate = useNavigate();
+
+  const logout = async () => {
+    // Clear the local app session even if Supabase is temporarily unreachable.
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+    localStorage.removeItem('sims_token');
+    localStorage.removeItem('sims_user');
+    localStorage.removeItem('sims_school');
+    navigate('/login', { replace: true });
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={() => { void logout(); }}
+      className="fixed right-5 top-5 z-50 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-soft transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+    >
+      Log out
+    </button>
+  );
+};
+
 const ProtectedRoute = ({ children, allowedRoles }: { children: ReactNode; allowedRoles?: string[] }) => {
   const user = getSessionUser();
 
@@ -53,7 +78,7 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: ReactNode; allow
     return <Navigate to={defaultRouteForRole(user.role)} replace />;
   }
 
-  return <>{children}</>;
+  return <><LogoutButton />{children}</>;
 };
 
 const RoleRoute = ({ children, allowedRoles }: { children: ReactNode; allowedRoles: string[] }) => {
@@ -67,7 +92,7 @@ const RoleRoute = ({ children, allowedRoles }: { children: ReactNode; allowedRol
     return <Navigate to={defaultRouteForRole(user.role)} replace />;
   }
 
-  return <>{children}</>;
+  return <><LogoutButton />{children}</>;
 };
 
 const LandingPage = () => (
