@@ -24,7 +24,11 @@ const toAppRow = <T>(row: Record<string, unknown>) => Object.fromEntries(
   Object.entries(row).map(([key, value]) => [toCamelCase(key), value]),
 ) as T;
 const toDatabaseRow = (row: Record<string, unknown>) => Object.fromEntries(
-  Object.entries(row).map(([key, value]) => [toSnakeCase(key), value]),
+  Object.entries(row)
+    // Timestamps are generated and maintained by PostgreSQL. Omitting them is
+    // important for bulk upserts, where a newly-created row has no timestamp.
+    .filter(([key, value]) => !['createdAt', 'updatedAt'].includes(key) && value !== undefined)
+    .map(([key, value]) => [toSnakeCase(key), value]),
 );
 
 const seedCollection = async <T extends { id: string }>(collectionName: string, fallback: T[]): Promise<T[]> => {
