@@ -1,0 +1,147 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userRole() {
+      return signedIn() ? request.auth.token.role : null;
+    }
+
+    function userSchoolId() {
+      return signedIn() ? request.auth.token.schoolId : null;
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && userRole() == 'SUPER_ADMIN';
+    }
+
+    function canAccessSchool(schoolId) {
+      return isSuperAdmin() || schoolId == userSchoolId();
+    }
+
+    function canManageSchoolData(schoolId) {
+      return isSuperAdmin() || (
+        signedIn() && (
+          userRole() == 'SCHOOL_ADMIN' ||
+          userRole() == 'PRINCIPAL' ||
+          userRole() == 'TEACHER' ||
+          userRole() == 'ACCOUNTANT' ||
+          userRole() == 'RECEPTIONIST'
+        ) && schoolId == userSchoolId()
+      );
+    }
+
+    match /schools/{schoolId} {
+      allow read: if signedIn() && canAccessSchool(schoolId);
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (
+        isSuperAdmin() ||
+        userId == request.auth.uid ||
+        resource.data.schoolId == userSchoolId()
+      );
+      allow create, update, delete: if isSuperAdmin() || (
+        signedIn() && userId == request.auth.uid && request.resource.data.schoolId == userSchoolId()
+      );
+    }
+
+    match /students/{studentId} {
+      allow read: if signedIn() && (
+        isSuperAdmin() || resource.data.schoolId == userSchoolId()
+      );
+      allow create, update, delete: if signedIn() && canManageSchoolData(request.resource.data.schoolId);
+    }
+
+    match /guardians/{guardianId} {
+      allow read: if signedIn() && (
+        isSuperAdmin() || resource.data.schoolId == userSchoolId()
+      );
+      allow create, update, delete: if signedIn() && canManageSchoolData(request.resource.data.schoolId);
+    }
+
+    match /academicYears/{yearId} {
+      allow read: if signedIn() && (
+        isSuperAdmin() || resource.data.schoolId == userSchoolId()
+      );
+      allow create, update, delete: if signedIn() && canManageSchoolData(request.resource.data.schoolId);
+    }
+
+    match /academicClasses/{classId} {
+      allow read: if signedIn() && (
+        isSuperAdmin() || resource.data.schoolId == userSchoolId()
+      );
+      allow create, update, delete: if signedIn() && canManageSchoolData(request.resource.data.schoolId);
+    }
+
+    match /streams/{streamId} {
+      allow read: if signedIn() && (
+        isSuperAdmin() || resource.data.schoolId == userSchoolId()
+      );
+      allow create, update, delete: if signedIn() && canManageSchoolData(request.resource.data.schoolId);
+    }
+
+    match /subjects/{subjectId} {
+      allow read: if signedIn() && (
+        isSuperAdmin() || resource.data.schoolId == userSchoolId()
+      );
+      allow create, update, delete: if signedIn() && canManageSchoolData(request.resource.data.schoolId);
+    }
+
+    match /attendanceRecords/{attendanceId} {
+      allow read: if signedIn() && (
+        isSuperAdmin() || resource.data.schoolId == userSchoolId()
+      );
+      allow create, update, delete: if signedIn() && canManageSchoolData(request.resource.data.schoolId);
+    }
+
+    match /exams/{examId} {
+      allow read: if signedIn() && (
+        isSuperAdmin() || resource.data.schoolId == userSchoolId()
+      );
+      allow create, update, delete: if signedIn() && canManageSchoolData(request.resource.data.schoolId);
+    }
+
+    match /marks/{markId} {
+      allow read: if signedIn() && (
+        isSuperAdmin() || resource.data.schoolId == userSchoolId()
+      );
+      allow create, update, delete: if signedIn() && canManageSchoolData(request.resource.data.schoolId);
+    }
+
+    match /feeStructures/{feeStructureId} {
+      allow read: if signedIn() && (
+        isSuperAdmin() || resource.data.schoolId == userSchoolId()
+      );
+      allow create, update, delete: if signedIn() && canManageSchoolData(request.resource.data.schoolId);
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if signedIn() && (
+        isSuperAdmin() || resource.data.schoolId == userSchoolId()
+      );
+      allow create, update, delete: if signedIn() && canManageSchoolData(request.resource.data.schoolId);
+    }
+
+    match /feePayments/{feePaymentId} {
+      allow read: if signedIn() && (
+        isSuperAdmin() || resource.data.schoolId == userSchoolId()
+      );
+      allow create, update, delete: if signedIn() && canManageSchoolData(request.resource.data.schoolId);
+    }
+
+    match /receipts/{receiptId} {
+      allow read: if signedIn() && (
+        isSuperAdmin() || resource.data.schoolId == userSchoolId()
+      );
+      allow create, update, delete: if signedIn() && canManageSchoolData(request.resource.data.schoolId);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
