@@ -123,7 +123,9 @@ router.post('/register', async (req, res) => {
       await writeCollection('users', [...users, user]);
     } catch (writeError) {
       await supabase.auth.admin.deleteUser(data.user.id);
-      throw writeError;
+      const message = writeError instanceof Error ? writeError.message : 'Unknown database error';
+      console.error('Unable to create Supabase user profile:', message);
+      return sendError(res, `Unable to create the user profile: ${message}`, 500);
     }
     const { passwordHash: _passwordHash, ...safeUser } = user;
     return sendSuccess(res, { user: safeUser }, 'Account created. You can now sign in.', 201);
