@@ -1,4 +1,6 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { type FormEvent, useState } from 'react';
+import { apiFetch } from './lib/api';
 import AcademicOverview from './pages/AcademicOverview';
 import FinanceOverview from './pages/FinanceOverview';
 import PortalDashboard from './pages/PortalDashboard';
@@ -156,10 +158,96 @@ const LandingPage = () => (
   </div>
 );
 
+const LoginPage = () => {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('admin@example.com');
+  const [password, setPassword] = useState('Password123!');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await apiFetch<{ token: string; user: { id: string; name: string; email: string; role: string; schoolId: string; permissions: string[] }; school: { id: string; name: string } }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+
+      localStorage.setItem('sims_token', result.token);
+      localStorage.setItem('sims_user', JSON.stringify(result.user));
+      localStorage.setItem('sims_school', JSON.stringify(result.school));
+      navigate('/students');
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+      <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-soft">
+        <div className="mb-6 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-xl font-bold text-white">S</div>
+          <h1 className="mt-4 text-2xl font-bold text-slate-900">SIMS Login</h1>
+          <p className="mt-2 text-sm text-slate-500">Access your school dashboard</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">Email</label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none ring-0 transition focus:border-brand-500 focus:bg-white"
+              placeholder="admin@example.com"
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">Password</label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none ring-0 transition focus:border-brand-500 focus:bg-white"
+              placeholder="Password123!"
+              required
+            />
+          </div>
+
+          {error ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white shadow-soft transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? 'Logging in...' : 'Log in'}
+          </button>
+        </form>
+
+        <div className="mt-5 rounded-xl bg-slate-50 p-3 text-center text-xs text-slate-600">
+          Demo credentials: <span className="font-semibold">admin@example.com / Password123!</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const App = () => (
   <Routes>
     <Route path="/" element={<LandingPage />} />
-    <Route path="/login" element={<div className="p-10 text-center text-xl">Login page placeholder</div>} />
+    <Route path="/login" element={<LoginPage />} />
     <Route path="/students" element={<SchoolManagement />} />
     <Route path="/academics" element={<AcademicOverview />} />
     <Route path="/fees" element={<FinanceOverview />} />
