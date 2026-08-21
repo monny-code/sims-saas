@@ -39,6 +39,10 @@ const apiLimiter = rateLimit({
 
 app.use('/api', apiLimiter);
 
+app.get('/', (_req, res) => {
+  res.json({ success: true, message: 'SIMS backend is running', data: { api: '/api/v1/health' } });
+});
+
 app.get('/api/v1/health', (_req, res) => {
   res.json({ success: true, message: 'SIMS backend is healthy', data: { status: 'ok' } });
 });
