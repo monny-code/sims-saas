@@ -84,7 +84,49 @@ router.post('/login', async (req, res) => {
 
 router.post('/register', async (req, res) => {
   if (isSupabaseEnabled) {
-    return sendError(res, 'Accounts are created by a school administrator', 403);
+    const parsed = registerSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
+    }
+    if (!hasSupabaseAdmin || !supabase) {
+      return sendError(res, 'SUPABASE_SERVICE_ROLE_KEY is required to create accounts', 503);
+    }
+
+    const [users, schools] = await Promise.all([getUsers(), getSchools()]);
+    if (users.some((user) => user.email.toLowerCase() === parsed.data.email.toLowerCase())) {
+      return sendError(res, 'A user with this email already exists', 409);
+    }
+    const schoolId = schools[0]?.id;
+    if (!schoolId) return sendError(res, 'No school is configured yet', 409);
+
+    // Public registration always creates the least-privileged role. School
+    // admins can assign staff roles from the user-management screen.
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: parsed.data.email,
+      password: parsed.data.password,
+      email_confirm: true,
+      user_metadata: { full_name: parsed.data.name },
+    });
+    if (error || !data.user) return sendError(res, error?.message ?? 'Unable to create Supabase user', 400);
+
+    const user: DemoUser = {
+      id: data.user.id,
+      schoolId,
+      name: parsed.data.name,
+      email: parsed.data.email,
+      passwordHash: '',
+      role: 'PARENT',
+      status: 'active',
+      permissions: rolePermissions.PARENT,
+    };
+    try {
+      await writeCollection('users', [...users, user]);
+    } catch (writeError) {
+      await supabase.auth.admin.deleteUser(data.user.id);
+      throw writeError;
+    }
+    const { passwordHash: _passwordHash, ...safeUser } = user;
+    return sendSuccess(res, { user: safeUser }, 'Account created. You can now sign in.', 201);
   }
   const parsed = registerSchema.safeParse(req.body);
 

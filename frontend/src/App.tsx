@@ -222,8 +222,8 @@ const LandingPage = () => (
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('admin@example.com');
-  const [password, setPassword] = useState('Password123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -277,7 +277,7 @@ const LoginPage = () => {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none ring-0 transition focus:border-brand-500 focus:bg-white"
-              placeholder="admin@example.com"
+              placeholder={supabaseEnabled ? 'you@school.edu' : 'admin@example.com'}
               required
             />
           </div>
@@ -313,8 +313,9 @@ const LoginPage = () => {
         </div>
 
         <div className="mt-5 rounded-xl bg-slate-50 p-3 text-center text-xs text-slate-600">
-          Demo credentials: <span className="font-semibold">admin@example.com / Password123!</span>
-          {supabaseEnabled ? ' • Supabase Auth enabled' : ' • Local auth mode'}
+          {supabaseEnabled
+            ? 'Sign in with the account created for your Supabase project.'
+            : <>Demo credentials: <span className="font-semibold">admin@example.com / Password123!</span></>}
         </div>
       </div>
     </div>
@@ -336,17 +337,31 @@ const RegisterPage = () => {
     setError('');
 
     try {
-      if (supabaseEnabled) throw new Error('Ask a school administrator to create your account.');
-
-      const result = await apiFetch<{ token: string; user: { id: string; name: string; email: string; role: string; schoolId: string; permissions: string[] }; school: { id: string; name: string } }>('/auth/register', {
+      await apiFetch<{ user: SessionUser }>('/auth/register', {
         method: 'POST',
         body: JSON.stringify({ name, email, password, role }),
+      });
+
+      if (supabaseEnabled && supabase) {
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError || !data.session) throw new Error(signInError?.message ?? 'Account created, but automatic sign-in failed. Please sign in.');
+        localStorage.setItem('sims_token', data.session.access_token);
+        const profile = await apiFetch<SessionUser & { school: { id: string; name: string } | null }>('/auth/me');
+        localStorage.setItem('sims_user', JSON.stringify(profile));
+        localStorage.setItem('sims_school', JSON.stringify(profile.school));
+        navigate(defaultRouteForRole(profile.role));
+        return;
+      }
+
+      const result = await apiFetch<{ token: string; user: SessionUser; school: { id: string; name: string } | null }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
       });
 
       localStorage.setItem('sims_token', result.token);
       localStorage.setItem('sims_user', JSON.stringify(result.user));
       localStorage.setItem('sims_school', JSON.stringify(result.school));
-      navigate(role === 'PARENT' ? '/portal' : '/students');
+      navigate(defaultRouteForRole(result.user.role));
     } catch (registerError) {
       setError(registerError instanceof Error ? registerError.message : 'Registration failed');
     } finally {
@@ -360,7 +375,7 @@ const RegisterPage = () => {
         <div className="mb-6 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-xl font-bold text-white">S</div>
           <h1 className="mt-4 text-2xl font-bold text-slate-900">Create account</h1>
-          <p className="mt-2 text-sm text-slate-500">Register a parent, teacher, or admin account</p>
+          <p className="mt-2 text-sm text-slate-500">Create your account. New self-service accounts start as parents.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -376,7 +391,7 @@ const RegisterPage = () => {
             <label htmlFor="register-password" className="mb-1 block text-sm font-medium text-slate-700">Password</label>
             <input id="register-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5" required />
           </div>
-          <div>
+          {!supabaseEnabled && <div>
             <label htmlFor="role" className="mb-1 block text-sm font-medium text-slate-700">Role</label>
             <select id="role" value={role} onChange={(event) => setRole(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
               <option value="PARENT">Parent</option>
@@ -384,7 +399,7 @@ const RegisterPage = () => {
               <option value="TEACHER">Teacher</option>
               <option value="SCHOOL_ADMIN">School Admin</option>
             </select>
-          </div>
+          </div>}
 
           {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
 
