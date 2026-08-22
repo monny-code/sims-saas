@@ -96,7 +96,7 @@ export const rolePermissions: Record<Role, string[]> = {
   SCHOOL_ADMIN: ['students.manage', 'teachers.manage', 'fees.manage', 'settings.manage', 'reports.view', 'attendance.manage', 'marks.manage'],
   PRINCIPAL: ['students.view', 'academics.manage', 'reports.view'],
   TEACHER: ['attendance.manage', 'marks.manage', 'students.view', 'timetable.view'],
-  ACCOUNTANT: ['fees.manage', 'invoices.manage', 'payments.manage', 'reports.view'],
+  ACCOUNTANT: ['fees.manage', 'invoices.manage', 'payments.manage', 'reports.view', 'students.view'],
   RECEPTIONIST: ['students.view', 'admissions.manage', 'notifications.send'],
   LIBRARIAN: ['library.manage', 'students.view'],
   PARENT: ['children.view', 'fees.view', 'results.view'],

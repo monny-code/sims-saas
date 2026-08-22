@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
 
 type FeeStructure = {
@@ -19,6 +19,8 @@ type FeeInvoice = {
   dueDate: string;
 };
 
+type Student = { id: string; firstName: string; lastName: string; admissionNumber: string };
+
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -31,6 +33,10 @@ const FinanceOverview = () => {
   const [invoices, setInvoices] = useState<FeeInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [students, setStudents] = useState<Student[]>([]);
+  const [showInvoiceForm, setShowInvoiceForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [invoiceForm, setInvoiceForm] = useState({ studentId: '', feeItem: '', amount: '', dueDate: '' });
 
   useEffect(() => {
     const token = localStorage.getItem('sims_token');
@@ -48,16 +54,39 @@ const FinanceOverview = () => {
       apiFetch<{ invoices: FeeInvoice[] }>('/fees/invoices', {
         headers: { Authorization: `Bearer ${token}` },
       }),
+      apiFetch<{ students: Student[] }>('/students', {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
     ])
-      .then(([structureResult, invoiceResult]) => {
+      .then(([structureResult, invoiceResult, studentResult]) => {
         setStructures(structureResult.structures ?? []);
         setInvoices(invoiceResult.invoices ?? []);
+        setStudents(studentResult.students ?? []);
       })
       .catch(() => {
         setError('Unable to load finance data.');
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const createInvoice = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const result = await apiFetch<{ invoice: FeeInvoice }>('/fees/invoices', {
+        method: 'POST',
+        body: JSON.stringify({ studentId: invoiceForm.studentId, feeItem: invoiceForm.feeItem, amount: Number(invoiceForm.amount), dueDate: invoiceForm.dueDate }),
+      });
+      setInvoices((current) => [...current, result.invoice]);
+      setInvoiceForm({ studentId: '', feeItem: '', amount: '', dueDate: '' });
+      setShowInvoiceForm(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to generate invoice.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const totalOutstanding = invoices.reduce((sum, invoice) => sum + (invoice.status === 'PAID' ? 0 : invoice.total), 0);
 
@@ -69,11 +98,24 @@ const FinanceOverview = () => {
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">Finance</p>
             <h1 className="mt-2 text-3xl font-bold">Fees & Payments</h1>
           </div>
-          <button className="rounded-xl bg-brand-600 px-5 py-3 font-semibold text-white shadow-soft">Generate invoice</button>
+          <button type="button" onClick={() => setShowInvoiceForm((current) => !current)} className="rounded-xl bg-brand-600 px-5 py-3 font-semibold text-white shadow-soft">Generate invoice</button>
         </div>
 
         {error ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{error}</div>
+        ) : null}
+
+        {showInvoiceForm ? (
+          <form onSubmit={createInvoice} className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
+            <h2 className="text-lg font-semibold">Generate invoice</h2>
+            <div className="mt-4 grid gap-4 md:grid-cols-4">
+              <select required value={invoiceForm.studentId} onChange={(event) => setInvoiceForm({ ...invoiceForm, studentId: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2"><option value="">Select student</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName} ({student.admissionNumber})</option>)}</select>
+              <input required placeholder="Fee item" value={invoiceForm.feeItem} onChange={(event) => setInvoiceForm({ ...invoiceForm, feeItem: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" />
+              <input required min="0.01" step="0.01" type="number" placeholder="Amount" value={invoiceForm.amount} onChange={(event) => setInvoiceForm({ ...invoiceForm, amount: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" />
+              <input required type="date" value={invoiceForm.dueDate} onChange={(event) => setInvoiceForm({ ...invoiceForm, dueDate: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </div>
+            <button disabled={saving} className="mt-4 rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white disabled:opacity-60">{saving ? 'Generating...' : 'Create invoice'}</button>
+          </form>
         ) : null}
 
         <div className="mb-8 grid gap-4 md:grid-cols-3">

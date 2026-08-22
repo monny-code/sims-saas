@@ -60,7 +60,6 @@ router.post('/invoices', requireAuth, async (req: AuthenticatedRequest, res) => 
 
   const parsed = z.object({
     studentId: z.string().min(1),
-    studentName: z.string().min(1),
     feeItem: z.string().min(1),
     amount: z.number().positive(),
     dueDate: z.string().min(1),
@@ -70,12 +69,18 @@ router.post('/invoices', requireAuth, async (req: AuthenticatedRequest, res) => 
     return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
   }
 
+  const students = await getStudents();
+  const student = students.find((entry) => entry.id === parsed.data.studentId);
+  if (!student || (req.user?.role !== 'SUPER_ADMIN' && student.schoolId !== req.user?.schoolId)) {
+    return sendError(res, 'Student not found', 404);
+  }
+
   const nextInvoice: Invoice = {
     id: `inv-${Date.now()}`,
     schoolId: req.user?.schoolId ?? 's-1',
     invoiceNumber: `INV-${Date.now()}`,
     studentId: parsed.data.studentId,
-    studentName: parsed.data.studentName,
+    studentName: `${student.firstName} ${student.lastName}`,
     feeItem: parsed.data.feeItem,
     amount: parsed.data.amount,
     discount: 0,
