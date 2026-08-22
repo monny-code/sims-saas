@@ -115,7 +115,10 @@ router.get('/parent-portal', requireAuth, async (req: AuthenticatedRequest, res)
       })),
       notices: [],
       feeSummary: {
-        due: invoicesForChild.reduce((sum, invoice) => sum + (invoice.status === 'PAID' ? 0 : invoice.total), 0),
+        due: invoicesForChild.reduce((sum, invoice) => {
+          const paid = paymentsForChild.filter((payment) => payment.invoiceId === invoice.id).reduce((total, payment) => total + payment.amount, 0);
+          return sum + Math.max(invoice.total - paid, 0);
+        }, 0),
         paid: paymentsForChild.reduce((sum, payment) => sum + payment.amount, 0),
       },
     },

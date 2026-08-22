@@ -42,6 +42,15 @@ const filterStudentAccess = async (req: AuthenticatedRequest, invoicesList: Invo
   return [];
 };
 
+const getParentChildIds = async (req: AuthenticatedRequest, students: { id: string; schoolId: string }[]) => {
+  if (!req.user || req.user.role !== 'PARENT') return [];
+  const [guardians, links] = await Promise.all([getGuardians(), getStudentGuardians()]);
+  const guardianIds = guardians
+    .filter((guardian) => guardian.schoolId === req.user?.schoolId && ((guardian as { userId?: string }).userId === req.user?.id || guardian.email?.toLowerCase() === req.user?.email.toLowerCase()))
+    .map((guardian) => guardian.id);
+  return students.filter((student) => student.schoolId === req.user?.schoolId && links.some((link) => link.studentId === student.id && guardianIds.includes(link.guardianId))).map((student) => student.id);
+};
+
 router.get('/structures', requireAuth, async (req: AuthenticatedRequest, res) => {
   const data = filterBySchool(req, await getFeeStructures());
   return sendSuccess(res, { structures: data }, 'Fee structures loaded');
@@ -96,11 +105,17 @@ router.post('/invoices', requireAuth, async (req: AuthenticatedRequest, res) => 
 });
 
 router.get('/payments', requireAuth, async (req: AuthenticatedRequest, res) => {
-  const data = filterBySchool(req, await getFeePayments()).filter((payment) => {
+  const payments = filterBySchool(req, await getFeePayments());
+  const students = await getStudents();
+  const parentChildIds = await getParentChildIds(req, students);
+  const data = payments.filter((payment) => {
     if (req.user?.role === 'SUPER_ADMIN' || req.user?.role === 'SCHOOL_ADMIN' || req.user?.role === 'ACCOUNTANT') {
       return true;
     }
-    if (req.user?.role === 'PARENT' || req.user?.role === 'STUDENT') {
+    if (req.user?.role === 'PARENT') {
+      return parentChildIds.includes(payment.studentId);
+    }
+    if (req.user?.role === 'STUDENT') {
       return payment.studentId === req.user?.id;
     }
     return false;
@@ -192,11 +207,17 @@ router.post('/payments', requireAuth, async (req: AuthenticatedRequest, res) => 
 router.get('/receipts', requireAuth, async (req: AuthenticatedRequest, res) => {
   const receipts = await getReceipts();
   const feePayments = await getFeePayments();
+  const students = await getStudents();
+  const parentChildIds = await getParentChildIds(req, students);
   const data = filterBySchool(req, receipts).filter((receipt) => {
     if (req.user?.role === 'SUPER_ADMIN' || req.user?.role === 'SCHOOL_ADMIN' || req.user?.role === 'ACCOUNTANT') {
       return true;
     }
-    if (req.user?.role === 'PARENT' || req.user?.role === 'STUDENT') {
+    if (req.user?.role === 'PARENT') {
+      const payment = feePayments.find((entry) => entry.id === receipt.paymentId && parentChildIds.includes(entry.studentId));
+      return Boolean(payment);
+    }
+    if (req.user?.role === 'STUDENT') {
       const payment = feePayments.find((entry) => entry.id === receipt.paymentId && entry.studentId === req.user?.id);
       return Boolean(payment);
     }
