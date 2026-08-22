@@ -10,6 +10,7 @@ import SchoolManagement from './pages/SchoolManagement';
 import SettingsPage from './pages/SettingsPage';
 import UserManagementPage from './pages/UserManagementPage';
 import TeachersPage from './pages/TeachersPage';
+import StudentProfilePage from './pages/StudentProfilePage';
 
 type SessionUser = {
   id: string;
@@ -474,6 +475,7 @@ const App = () => (
     <Route path="/login" element={<LoginPage />} />
     <Route path="/register" element={<RegisterPage />} />
     <Route path="/students" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'RECEPTIONIST']}><SchoolManagement /></ProtectedRoute>} />
+    <Route path="/students/:id" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'RECEPTIONIST']}><StudentProfilePage /></ProtectedRoute>} />
     <Route path="/teachers" element={<RoleRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN']}><TeachersPage /></RoleRoute>} />
     <Route path="/academics" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER']}><AcademicOverview /></ProtectedRoute>} />
     <Route path="/fees" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT', 'PARENT', 'STUDENT']}><FinanceOverview /></ProtectedRoute>} />

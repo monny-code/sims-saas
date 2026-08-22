@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { type DemoStudent } from '../data/demoData.js';
-import { getGuardians, getSchools, getStudentGuardians, getStudents, getUsers, writeCollection } from '../services/firebaseDataStore.js';
+import { getAttendanceRecords, getFeePayments, getGuardians, getInvoices, getReceipts, getSchools, getStudentGuardians, getStudents, getUsers, getMarks, writeCollection } from '../services/firebaseDataStore.js';
 import { requireAuth, requirePermission, requireRole, type AuthenticatedRequest } from '../middleware/auth.js';
 import { sendError, sendSuccess } from '../utils/response.js';
 
@@ -51,7 +51,7 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
     return sendError(res, 'Forbidden: missing student permission', 403);
   }
 
-  const [students, schools, guardians, links] = await Promise.all([getStudents(), getSchools(), getGuardians(), getStudentGuardians()]);
+  const [students, schools, guardians, links, attendance, marks, invoices, payments, receipts] = await Promise.all([getStudents(), getSchools(), getGuardians(), getStudentGuardians(), getAttendanceRecords(), getMarks(), getInvoices(), getFeePayments(), getReceipts()]);
   const target = students.find((student) => student.id === req.params.id);
 
   if (!target) {
@@ -70,6 +70,14 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
       student: target,
       guardians: studentGuardians,
       school: schools.find((school) => school.id === target.schoolId),
+      attendance: attendance.filter((record) => record.studentId === target.id && record.schoolId === target.schoolId),
+      marks: marks.filter((mark) => mark.studentId === target.id && mark.schoolId === target.schoolId),
+      invoices: invoices.filter((invoice) => invoice.studentId === target.id && invoice.schoolId === target.schoolId),
+      payments: payments.filter((payment) => payment.studentId === target.id && payment.schoolId === target.schoolId),
+      receipts: receipts.filter((receipt) => {
+        const payment = payments.find((item) => item.id === receipt.paymentId);
+        return payment?.studentId === target.id && receipt.schoolId === target.schoolId;
+      }),
     },
     'Student profile loaded',
   );

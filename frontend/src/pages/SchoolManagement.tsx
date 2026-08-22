@@ -150,6 +150,7 @@ const SchoolManagement = () => {
                   <tr key={student.id}>
                     <td className="px-6 py-4">
                       <div className="font-semibold text-slate-900">{student.firstName} {student.lastName}</div>
+                      <a href={`/students/${student.id}`} className="text-xs font-medium text-brand-700">View profile</a>
                     </td>
                     <td className="px-6 py-4">{student.admissionNumber}</td>
                     <td className="px-6 py-4">{student.className ?? 'Not assigned'}</td>
