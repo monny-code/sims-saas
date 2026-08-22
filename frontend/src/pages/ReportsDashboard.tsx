@@ -21,6 +21,8 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+const formatFeeValue = (value: number) => formatCurrency(value);
+
 const ReportsDashboard = () => {
   const [data, setData] = useState<SummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,7 +74,7 @@ const ReportsDashboard = () => {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
             <h2 className="text-xl font-semibold">Attendance trend</h2>
             <div className="mt-6 space-y-3">
-              {loading ? <div className="text-slate-500">Loading...</div> : data?.attendanceTrend.map((point) => (
+              {loading ? <div className="text-slate-500">Loading...</div> : data?.attendanceTrend.length ? data.attendanceTrend.map((point) => (
                 <div key={point.label}>
                   <div className="mb-1 flex items-center justify-between text-sm text-slate-600">
                     <span>{point.label}</span>
@@ -82,24 +84,24 @@ const ReportsDashboard = () => {
                     <div className="h-full rounded-full bg-brand-600" style={{ width: `${point.value}%` }} />
                   </div>
                 </div>
-              ))}
+              )) : <div className="text-slate-500">No attendance data available.</div>}
             </div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
             <h2 className="text-xl font-semibold">Fee performance</h2>
             <div className="mt-6 space-y-3">
-              {loading ? <div className="text-slate-500">Loading...</div> : data?.feePerformance.map((point) => (
+              {loading ? <div className="text-slate-500">Loading...</div> : data?.feePerformance.length ? data.feePerformance.map((point) => (
                 <div key={point.label}>
                   <div className="mb-1 flex items-center justify-between text-sm text-slate-600">
                     <span>{point.label}</span>
-                    <span>{point.value}%</span>
+                    <span>{formatFeeValue(point.value)}</span>
                   </div>
                   <div className="h-2.5 overflow-hidden rounded-full bg-slate-200">
-                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${point.value}%` }} />
+                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${data.summary.totalCollected ? Math.min((point.value / data.summary.totalCollected) * 100, 100) : 0}%` }} />
                   </div>
                 </div>
-              ))}
+              )) : <div className="text-slate-500">No payment data available.</div>}
             </div>
           </div>
         </div>

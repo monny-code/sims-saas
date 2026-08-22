@@ -30,6 +30,26 @@ router.get('/summary', requireAuth, async (req: AuthenticatedRequest, res) => {
   const schoolInvoices = schoolFilter(req, invoices);
   const schoolPayments = schoolFilter(req, feePayments);
 
+  const attendanceTrend = [...new Set(schoolAttendance.map((record) => record.date))]
+    .sort()
+    .slice(-7)
+    .map((date) => {
+      const recordsForDate = schoolAttendance.filter((record) => record.date === date);
+      const presentRecords = recordsForDate.filter((record) => record.status === 'PRESENT').length;
+      return {
+        label: date,
+        value: recordsForDate.length ? Number(((presentRecords / recordsForDate.length) * 100).toFixed(1)) : 0,
+      };
+    });
+
+  const feePerformance = [...new Set(schoolPayments.map((payment) => payment.paidAt?.slice(0, 7)).filter(Boolean))]
+    .sort()
+    .slice(-6)
+    .map((period) => ({
+      label: period as string,
+      value: schoolPayments.filter((payment) => payment.paidAt?.startsWith(period as string)).reduce((sum, payment) => sum + payment.amount, 0),
+    }));
+
   const attendanceRate = schoolAttendance.length
     ? (schoolAttendance.filter((record) => record.status === 'PRESENT').length / schoolAttendance.length) * 100
     : 0;
@@ -52,18 +72,8 @@ router.get('/summary', requireAuth, async (req: AuthenticatedRequest, res) => {
         overdueInvoices,
         activeParents: users.filter((user) => user.schoolId === school.id && user.role === 'PARENT').length,
       },
-      attendanceTrend: [
-        { label: 'Mon', value: 86 },
-        { label: 'Tue', value: 89 },
-        { label: 'Wed', value: 94 },
-        { label: 'Thu', value: 92 },
-        { label: 'Fri', value: 96 },
-      ],
-      feePerformance: [
-        { label: 'Term 1', value: 72 },
-        { label: 'Term 2', value: 84 },
-        { label: 'Term 3', value: 91 },
-      ],
+      attendanceTrend,
+      feePerformance,
     },
     'Report summary loaded',
   );
