@@ -37,6 +37,7 @@ export type DemoUser = {
 export type DemoGuardian = {
   id: string;
   schoolId: string;
+  userId?: string;
   name: string;
   relationship: string;
   phone: string;
@@ -170,6 +171,7 @@ export const guardians: DemoGuardian[] = [
   {
     id: 'g-1',
     schoolId: 's-1',
+    userId: 'u-5',
     name: 'Mary Juma',
     relationship: 'Mother',
     phone: '+255722000001',

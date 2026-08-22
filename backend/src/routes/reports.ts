@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, type AuthenticatedRequest } from '../middleware/auth.js';
-import { getAttendanceRecords, getFeePayments, getGuardians, getInvoices, getSchools, getStudentGuardians, getStudents, getUsers } from '../services/firebaseDataStore.js';
+import { getAttendanceRecords, getExams, getFeePayments, getGuardians, getInvoices, getMarks, getSchools, getStudentGuardians, getStudents, getUsers } from '../services/firebaseDataStore.js';
 import { sendSuccess } from '../utils/response.js';
 
 const router = Router();
@@ -121,6 +121,15 @@ router.get('/parent-portal', requireAuth, async (req: AuthenticatedRequest, res)
     },
     'Parent portal data loaded',
   );
+});
+
+router.get('/parent-results', requireAuth, async (req: AuthenticatedRequest, res) => {
+  if (!req.user || !['PARENT', 'STUDENT'].includes(req.user.role)) return sendSuccess(res, { results: [] }, 'Results loaded');
+  const [students, guardians, links, exams, marks] = await Promise.all([getStudents(), getGuardians(), getStudentGuardians(), getExams(), getMarks()]);
+  const guardianIds = guardians.filter((guardian) => guardian.schoolId === req.user?.schoolId && ((guardian as { userId?: string }).userId === req.user?.id || guardian.email?.toLowerCase() === req.user?.email.toLowerCase())).map((guardian) => guardian.id);
+  const childIds = req.user.role === 'STUDENT' ? [req.user.id] : students.filter((student) => student.schoolId === req.user?.schoolId && links.some((link) => link.studentId === student.id && guardianIds.includes(link.guardianId))).map((student) => student.id);
+  const publishedExamIds = exams.filter((exam) => exam.schoolId === req.user?.schoolId && exam.status === 'CLOSED').map((exam) => exam.id);
+  return sendSuccess(res, { results: marks.filter((mark) => mark.schoolId === req.user?.schoolId && childIds.includes(mark.studentId) && publishedExamIds.includes(mark.examId)) }, 'Results loaded');
 });
 
 export default router;
