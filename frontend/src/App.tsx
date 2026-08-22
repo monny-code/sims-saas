@@ -9,6 +9,7 @@ import ReportsDashboard from './pages/ReportsDashboard';
 import SchoolManagement from './pages/SchoolManagement';
 import SettingsPage from './pages/SettingsPage';
 import UserManagementPage from './pages/UserManagementPage';
+import TeachersPage from './pages/TeachersPage';
 
 type SessionUser = {
   id: string;
@@ -46,6 +47,7 @@ const defaultRouteForRole = (role: string) => {
 const AdminNavigation = ({ user }: { user: SessionUser }) => {
   const links = [
     { label: 'Students', href: '/students', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'RECEPTIONIST'] },
+    { label: 'Teachers', href: '/teachers', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN'] },
     { label: 'Academics', href: '/academics', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER'] },
     { label: 'Fees', href: '/fees', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT'] },
     { label: 'Reports', href: '/reports', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'ACCOUNTANT'] },
@@ -472,6 +474,7 @@ const App = () => (
     <Route path="/login" element={<LoginPage />} />
     <Route path="/register" element={<RegisterPage />} />
     <Route path="/students" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'RECEPTIONIST']}><SchoolManagement /></ProtectedRoute>} />
+    <Route path="/teachers" element={<RoleRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN']}><TeachersPage /></RoleRoute>} />
     <Route path="/academics" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER']}><AcademicOverview /></ProtectedRoute>} />
     <Route path="/fees" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT', 'PARENT', 'STUDENT']}><FinanceOverview /></ProtectedRoute>} />
     <Route path="/portal" element={<ProtectedRoute allowedRoles={['PARENT', 'STUDENT']}><PortalDashboard /></ProtectedRoute>} />
