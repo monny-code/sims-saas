@@ -203,6 +203,13 @@ router.get('/users', requireAuth, requireRole('SUPER_ADMIN', 'SCHOOL_ADMIN'), as
 });
 
 const managedRoleSchema = z.enum(['SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'ACCOUNTANT', 'RECEPTIONIST', 'LIBRARIAN', 'PARENT', 'STUDENT']);
+const managedPermissionSchema = z.enum([
+  'schools.manage', 'users.manage', 'students.manage', 'students.view', 'teachers.manage',
+  'fees.manage', 'invoices.manage', 'payments.manage', 'reports.view', 'settings.manage',
+  'attendance.manage', 'marks.manage', 'academics.manage', 'admissions.manage',
+  'notifications.send', 'library.manage', 'children.view', 'fees.view', 'results.view',
+  'profile.view', 'timetable.view',
+]);
 const createManagedUserSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
@@ -214,6 +221,7 @@ const updateManagedUserSchema = z.object({
   name: z.string().min(2).optional(),
   role: managedRoleSchema.optional(),
   status: z.enum(['active', 'inactive']).optional(),
+  permissions: z.array(managedPermissionSchema).max(30).optional(),
 });
 
 const canManageUser = (actor: DemoUser, target: DemoUser) =>
@@ -258,7 +266,11 @@ router.patch('/users/:id', requireAuth, requireRole('SUPER_ADMIN', 'SCHOOL_ADMIN
   if (!canManageUser(req.user, target)) return sendError(res, 'Forbidden: school access denied', 403);
   if (target.id === req.user.id && parsed.data.status === 'inactive') return sendError(res, 'You cannot deactivate your own account', 400);
 
-  const updated: DemoUser = { ...target, ...parsed.data, permissions: parsed.data.role ? rolePermissions[parsed.data.role] : target.permissions };
+  const updated: DemoUser = {
+    ...target,
+    ...parsed.data,
+    permissions: parsed.data.permissions ?? (parsed.data.role ? rolePermissions[parsed.data.role] : target.permissions),
+  };
   await writeCollection('users', users.map((user) => user.id === target.id ? updated : user));
   const { passwordHash: _passwordHash, ...safeUser } = updated;
   return sendSuccess(res, { user: safeUser }, 'User updated');
