@@ -14,6 +14,7 @@ type AcademicItem = {
 };
 type Student = { id: string; firstName: string; lastName: string };
 type Exam = { id: string; name: string };
+type AcademicClass = { id: string; name: string; level: string; academicYearId: string };
 
 const AcademicOverview = () => {
   const [subjects, setSubjects] = useState<AcademicItem[]>([]);
@@ -22,6 +23,9 @@ const AcademicOverview = () => {
   const [error, setError] = useState('');
   const [students, setStudents] = useState<Student[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
+  const [classes, setClasses] = useState<AcademicClass[]>([]);
+  const [streamName, setStreamName] = useState('');
+  const [classForm, setClassForm] = useState({ name: '', level: 'Secondary', academicYearId: '' });
   const [attendanceForm, setAttendanceForm] = useState({ studentId: '', date: '', status: 'PRESENT', reason: '' });
   const [markForm, setMarkForm] = useState({ studentId: '', examId: '', subject: '', marks: '', remarks: '' });
   const [saving, setSaving] = useState(false);
@@ -30,18 +34,21 @@ const AcademicOverview = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [subjectsRes, attendanceRes, marksRes, studentRes, examRes] = await Promise.all([
+        const [subjectsRes, attendanceRes, marksRes, studentRes, examRes, classRes] = await Promise.all([
           apiFetch<{ subjects: AcademicItem[] }>('/academics/subjects'),
           apiFetch<{ attendance: AcademicItem[] }>('/academics/attendance'),
           apiFetch<{ marks: AcademicItem[] }>('/academics/marks'),
           apiFetch<{ students: Student[] }>('/students'),
           apiFetch<{ exams: Exam[] }>('/academics/exams'),
+          apiFetch<{ classes: AcademicClass[] }>('/academics/classes'),
         ]);
         setSubjects(subjectsRes.subjects);
         setAttendance(attendanceRes.attendance);
         setMarks(marksRes.marks);
         setStudents(studentRes.students);
         setExams(examRes.exams);
+        setClasses(classRes.classes);
+        setClassForm((current) => ({ ...current, academicYearId: classRes.classes[0]?.academicYearId ?? '' }));
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load academic data.');
       }
@@ -49,6 +56,18 @@ const AcademicOverview = () => {
 
     load();
   }, []);
+
+  const createClass = async (event: FormEvent) => {
+    event.preventDefault(); setSaving(true); setError('');
+    try { const result = await apiFetch<{ class: AcademicClass }>('/academics/classes', { method: 'POST', body: JSON.stringify(classForm) }); setClasses((current) => [...current, result.class]); setClassForm({ ...classForm, name: '' }); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Unable to create class.'); } finally { setSaving(false); }
+  };
+
+  const createStream = async (event: FormEvent) => {
+    event.preventDefault(); setSaving(true); setError('');
+    try { await apiFetch('/academics/streams', { method: 'POST', body: JSON.stringify({ name: streamName }) }); setStreamName(''); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Unable to create stream.'); } finally { setSaving(false); }
+  };
 
   const recordAttendance = async (event: FormEvent) => {
     event.preventDefault();
@@ -103,6 +122,11 @@ const AcademicOverview = () => {
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Overview</h1>
         </div>
         {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <form onSubmit={createClass} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft"><h2 className="text-lg font-semibold">Add class</h2><div className="mt-4 grid gap-3 sm:grid-cols-3"><input required minLength={2} placeholder="Class name" value={classForm.name} onChange={(event) => setClassForm({ ...classForm, name: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Level" value={classForm.level} onChange={(event) => setClassForm({ ...classForm, level: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Academic year ID" value={classForm.academicYearId} onChange={(event) => setClassForm({ ...classForm, academicYearId: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /></div><button disabled={saving} className="mt-4 rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white">Create class</button><div className="mt-3 text-sm text-slate-500">{classes.length} classes configured</div></form>
+          <form onSubmit={createStream} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft"><h2 className="text-lg font-semibold">Add stream</h2><div className="mt-4 flex gap-3"><input required placeholder="Stream name" value={streamName} onChange={(event) => setStreamName(event.target.value)} className="flex-1 rounded-xl border border-slate-200 px-3 py-2" /><button disabled={saving} className="rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white">Create stream</button></div></form>
+        </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
           <form onSubmit={createSubject} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">

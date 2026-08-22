@@ -25,10 +25,34 @@ router.get('/classes', requireAuth, async (req: AuthenticatedRequest, res) => {
   return sendSuccess(res, { classes: filtered }, 'Classes loaded');
 });
 
+const classSchema = z.object({ name: z.string().min(2), level: z.string().min(2), academicYearId: z.string().min(1) });
+router.post('/classes', requireAuth, requirePermission('academics.manage'), async (req: AuthenticatedRequest, res) => {
+  const parsed = classSchema.safeParse(req.body);
+  if (!parsed.success) return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
+  const classes = await getAcademicClasses();
+  const schoolId = req.user?.schoolId ?? 's-1';
+  if (classes.some((item) => item.schoolId === schoolId && item.name.toLowerCase() === parsed.data.name.toLowerCase())) return sendError(res, 'Class already exists', 409);
+  const academicClass = { id: `cls-${Date.now()}`, schoolId, status: 'ACTIVE' as const, ...parsed.data };
+  await writeCollection('academicClasses', [...classes, academicClass]);
+  return sendSuccess(res, { class: academicClass }, 'Class created', 201);
+});
+
 router.get('/streams', requireAuth, async (req: AuthenticatedRequest, res) => {
   const data = await getStreams();
   const filtered = data.filter((stream) => req.user?.role === 'SUPER_ADMIN' || stream.schoolId === req.user?.schoolId);
   return sendSuccess(res, { streams: filtered }, 'Streams loaded');
+});
+
+const streamSchema = z.object({ name: z.string().min(1) });
+router.post('/streams', requireAuth, requirePermission('academics.manage'), async (req: AuthenticatedRequest, res) => {
+  const parsed = streamSchema.safeParse(req.body);
+  if (!parsed.success) return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
+  const streams = await getStreams();
+  const schoolId = req.user?.schoolId ?? 's-1';
+  if (streams.some((item) => item.schoolId === schoolId && item.name.toLowerCase() === parsed.data.name.toLowerCase())) return sendError(res, 'Stream already exists', 409);
+  const stream = { id: `str-${Date.now()}`, schoolId, ...parsed.data };
+  await writeCollection('streams', [...streams, stream]);
+  return sendSuccess(res, { stream }, 'Stream created', 201);
 });
 
 router.get('/subjects', requireAuth, async (req: AuthenticatedRequest, res) => {
