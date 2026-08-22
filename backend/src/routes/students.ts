@@ -32,7 +32,11 @@ const studentSchema = z.object({
   }).optional(),
 });
 
-router.get('/', requireAuth, requirePermission('students.manage'), async (req: AuthenticatedRequest, res) => {
+router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
+  if (!req.user?.permissions.includes('students.manage') && !req.user?.permissions.includes('students.view')) {
+    return sendError(res, 'Forbidden: missing student permission', 403);
+  }
+
   const [students, schools] = await Promise.all([getStudents(), getSchools()]);
   const schoolId = req.user?.role === 'SUPER_ADMIN' ? req.query.schoolId ?? 's-1' : req.user?.schoolId ?? 's-1';
   const filtered = students.filter((student) => student.schoolId === schoolId);
@@ -40,7 +44,11 @@ router.get('/', requireAuth, requirePermission('students.manage'), async (req: A
   return sendSuccess(res, { students: filtered, total: filtered.length, schools }, 'Students loaded');
 });
 
-router.get('/:id', requireAuth, requirePermission('students.manage'), async (req: AuthenticatedRequest, res) => {
+router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
+  if (!req.user?.permissions.includes('students.manage') && !req.user?.permissions.includes('students.view')) {
+    return sendError(res, 'Forbidden: missing student permission', 403);
+  }
+
   const [students, schools, guardians, links] = await Promise.all([getStudents(), getSchools(), getGuardians(), getStudentGuardians()]);
   const target = students.find((student) => student.id === req.params.id);
 

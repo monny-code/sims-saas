@@ -39,6 +39,7 @@ const defaultRouteForRole = (role: string) => {
   if (['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(role)) return '/students';
   if (role === 'TEACHER') return '/academics';
   if (role === 'ACCOUNTANT') return '/fees';
+  if (role === 'RECEPTIONIST' || role === 'LIBRARIAN') return '/students';
   return '/reports';
 };
 

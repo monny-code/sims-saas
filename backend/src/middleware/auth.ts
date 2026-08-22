@@ -55,12 +55,10 @@ export const requireAuth = async (req: AuthenticatedRequest, res: Response, next
     const token = authHeader.replace('Bearer ', '');
     const payload = await verifyAccessToken(token);
     const [users, schools] = await Promise.all([getUsers(), getSchools()]);
-    // Supabase profiles are bound to auth.users.id. Matching only by email
-    // would let a profile become detached from its authenticated identity.
+    // Prefer the immutable Auth identity. The email fallback supports profiles
+    // created before Supabase Auth was enabled and remains tenant-scoped below.
     const user = users.find((candidate) => candidate.id === payload.sub)
-      ?? (!isSupabaseEnabled
-        ? users.find((candidate) => candidate.email.toLowerCase() === payload.email.toLowerCase())
-        : undefined);
+      ?? users.find((candidate) => candidate.email.toLowerCase() === payload.email.toLowerCase());
 
     if (!user) {
       return sendError(res, 'User not found', 404);
