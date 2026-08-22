@@ -25,6 +25,7 @@ const AcademicOverview = () => {
   const [attendanceForm, setAttendanceForm] = useState({ studentId: '', date: '', status: 'PRESENT', reason: '' });
   const [markForm, setMarkForm] = useState({ studentId: '', examId: '', subject: '', marks: '', remarks: '' });
   const [saving, setSaving] = useState(false);
+  const [subjectForm, setSubjectForm] = useState({ name: '', code: '', category: 'Core' });
 
   useEffect(() => {
     const load = async () => {
@@ -79,6 +80,21 @@ const AcademicOverview = () => {
     }
   };
 
+  const createSubject = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const result = await apiFetch<{ subject: AcademicItem }>('/academics/subjects', { method: 'POST', body: JSON.stringify(subjectForm) });
+      setSubjects((current) => [...current, result.subject]);
+      setSubjectForm({ name: '', code: '', category: 'Core' });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create subject.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -87,6 +103,18 @@ const AcademicOverview = () => {
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Overview</h1>
         </div>
         {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <form onSubmit={createSubject} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
+            <h2 className="text-lg font-semibold">Add subject</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <input required minLength={2} placeholder="Subject name" value={subjectForm.name} onChange={(event) => setSubjectForm({ ...subjectForm, name: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" />
+              <input required minLength={2} placeholder="Code" value={subjectForm.code} onChange={(event) => setSubjectForm({ ...subjectForm, code: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" />
+              <input required minLength={2} placeholder="Category" value={subjectForm.category} onChange={(event) => setSubjectForm({ ...subjectForm, category: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </div>
+            <button disabled={saving} className="mt-4 rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white disabled:opacity-60">{saving ? 'Saving...' : 'Create subject'}</button>
+          </form>
+        </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
           <form onSubmit={recordAttendance} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">

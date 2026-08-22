@@ -37,6 +37,47 @@ router.get('/subjects', requireAuth, async (req: AuthenticatedRequest, res) => {
   return sendSuccess(res, { subjects: filtered }, 'Subjects loaded');
 });
 
+const subjectSchema = z.object({
+  name: z.string().min(2),
+  code: z.string().min(2).max(20),
+  category: z.string().min(2),
+});
+
+router.post('/subjects', requireAuth, requirePermission('academics.manage'), async (req: AuthenticatedRequest, res) => {
+  const parsed = subjectSchema.safeParse(req.body);
+  if (!parsed.success) return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
+
+  const subjects = await getSubjects();
+  const schoolId = req.user?.schoolId ?? 's-1';
+  if (subjects.some((subject) => subject.schoolId === schoolId && subject.code.toLowerCase() === parsed.data.code.toLowerCase())) {
+    return sendError(res, 'Subject code already exists', 409);
+  }
+
+  const subject = { id: `sub-${Date.now()}`, schoolId, ...parsed.data, status: 'ACTIVE' as const };
+  await writeCollection('subjects', [...subjects, subject]);
+  return sendSuccess(res, { subject }, 'Subject created', 201);
+});
+
+router.patch('/subjects/:id', requireAuth, requirePermission('academics.manage'), async (req: AuthenticatedRequest, res) => {
+  const parsed = subjectSchema.partial().safeParse(req.body);
+  if (!parsed.success) return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
+
+  const subjects = await getSubjects();
+  const index = subjects.findIndex((subject) => subject.id === req.params.id);
+  if (index === -1) return sendError(res, 'Subject not found', 404);
+  const target = subjects[index];
+  if (req.user?.role !== 'SUPER_ADMIN' && target.schoolId !== req.user?.schoolId) return sendError(res, 'Forbidden: subject access denied', 403);
+  if (parsed.data.code && subjects.some((subject) => subject.id !== target.id && subject.schoolId === target.schoolId && subject.code.toLowerCase() === parsed.data.code?.toLowerCase())) {
+    return sendError(res, 'Subject code already exists', 409);
+  }
+
+  const subject = { ...target, ...parsed.data };
+  const nextSubjects = [...subjects];
+  nextSubjects[index] = subject;
+  await writeCollection('subjects', nextSubjects);
+  return sendSuccess(res, { subject }, 'Subject updated');
+});
+
 router.get('/attendance', requireAuth, requirePermission('attendance.manage'), async (req: AuthenticatedRequest, res) => {
   const data = await getAttendanceRecords();
   const filtered = data.filter((record) => req.user?.role === 'SUPER_ADMIN' || record.schoolId === req.user?.schoolId);

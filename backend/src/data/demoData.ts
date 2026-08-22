@@ -92,8 +92,8 @@ export const schools: DemoSchool[] = [
 ];
 
 export const rolePermissions: Record<Role, string[]> = {
-  SUPER_ADMIN: ['schools.manage', 'users.manage', 'students.manage', 'fees.manage', 'reports.view'],
-  SCHOOL_ADMIN: ['students.manage', 'teachers.manage', 'fees.manage', 'settings.manage', 'reports.view', 'attendance.manage', 'marks.manage'],
+  SUPER_ADMIN: ['schools.manage', 'users.manage', 'students.manage', 'fees.manage', 'reports.view', 'academics.manage'],
+  SCHOOL_ADMIN: ['students.manage', 'teachers.manage', 'fees.manage', 'settings.manage', 'reports.view', 'attendance.manage', 'marks.manage', 'academics.manage'],
   PRINCIPAL: ['students.view', 'academics.manage', 'reports.view'],
   TEACHER: ['attendance.manage', 'marks.manage', 'students.view', 'timetable.view'],
   ACCOUNTANT: ['fees.manage', 'invoices.manage', 'payments.manage', 'reports.view', 'students.view'],
