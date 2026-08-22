@@ -132,6 +132,21 @@ router.post('/payments', requireAuth, async (req: AuthenticatedRequest, res) => 
     return sendError(res, 'Invoice not found', 404);
   }
 
+  const students = await getStudents();
+  const student = students.find((entry) => entry.id === invoice.studentId && entry.schoolId === invoice.schoolId);
+  if (!student || parsed.data.studentId !== invoice.studentId) {
+    return sendError(res, 'Invoice student mismatch', 400);
+  }
+
+  const feePayments = await getFeePayments();
+  const paidAmount = feePayments
+    .filter((payment) => payment.invoiceId === invoice.id && payment.status === 'PAID')
+    .reduce((sum, payment) => sum + payment.amount, 0);
+  const balance = invoice.total - paidAmount;
+  if (parsed.data.amount > balance) {
+    return sendError(res, `Payment exceeds the outstanding balance of ${balance}`, 400);
+  }
+
   const processing = mockPaymentProvider.processPayment(parsed.data.amount, invoice.invoiceNumber);
 
   if (!processing.approved) {
@@ -153,7 +168,6 @@ router.post('/payments', requireAuth, async (req: AuthenticatedRequest, res) => 
     paidAt: new Date().toISOString(),
   };
 
-  const feePayments = await getFeePayments();
   await writeCollection('feePayments', [...feePayments, payment]);
 
   const receipt = {
@@ -168,7 +182,9 @@ router.post('/payments', requireAuth, async (req: AuthenticatedRequest, res) => 
   const receipts = await getReceipts();
   await writeCollection('receipts', [...receipts, receipt]);
 
-  await writeCollection('invoices', invoices.map((entry) => entry.id === invoice.id ? { ...entry, status: 'PAID' } : entry));
+  const nextPaidAmount = paidAmount + payment.amount;
+  const nextStatus = nextPaidAmount >= invoice.total ? 'PAID' : 'PARTIALLY_PAID';
+  await writeCollection('invoices', invoices.map((entry) => entry.id === invoice.id ? { ...entry, status: nextStatus } : entry));
 
   return sendSuccess(res, { payment, receipt }, 'Payment processed successfully', 201);
 });

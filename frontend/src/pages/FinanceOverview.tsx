@@ -11,6 +11,7 @@ type FeeStructure = {
 
 type FeeInvoice = {
   id: string;
+  studentId: string;
   invoiceNumber: string;
   studentName: string;
   feeItem: string;
@@ -18,6 +19,7 @@ type FeeInvoice = {
   status: string;
   dueDate: string;
 };
+type FeePayment = { id: string; invoiceId: string; amount: number; paymentMethod: string; status: string };
 
 type Student = { id: string; firstName: string; lastName: string; admissionNumber: string };
 
@@ -37,6 +39,9 @@ const FinanceOverview = () => {
   const [showInvoiceForm, setShowInvoiceForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [invoiceForm, setInvoiceForm] = useState({ studentId: '', feeItem: '', amount: '', dueDate: '' });
+  const [payments, setPayments] = useState<FeePayment[]>([]);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({ invoiceId: '', amount: '', paymentMethod: 'CASH' });
 
   useEffect(() => {
     const token = localStorage.getItem('sims_token');
@@ -57,11 +62,15 @@ const FinanceOverview = () => {
       apiFetch<{ students: Student[] }>('/students', {
         headers: { Authorization: `Bearer ${token}` },
       }),
+      apiFetch<{ payments: FeePayment[] }>('/fees/payments', {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
     ])
-      .then(([structureResult, invoiceResult, studentResult]) => {
+      .then(([structureResult, invoiceResult, studentResult, paymentResult]) => {
         setStructures(structureResult.structures ?? []);
         setInvoices(invoiceResult.invoices ?? []);
         setStudents(studentResult.students ?? []);
+        setPayments(paymentResult.payments ?? []);
       })
       .catch(() => {
         setError('Unable to load finance data.');
@@ -88,6 +97,28 @@ const FinanceOverview = () => {
     }
   };
 
+  const recordPayment = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const invoice = invoices.find((entry) => entry.id === paymentForm.invoiceId);
+      if (!invoice) throw new Error('Select a valid invoice.');
+      const result = await apiFetch<{ payment: FeePayment }>('/fees/payments', {
+        method: 'POST',
+        body: JSON.stringify({ invoiceId: invoice.id, studentId: invoice.studentId, amount: Number(paymentForm.amount), paymentMethod: paymentForm.paymentMethod }),
+      });
+      setPayments((current) => [...current, result.payment]);
+      setInvoices((current) => current.map((item) => item.id === invoice.id ? { ...item, status: Number(paymentForm.amount) >= invoice.total - payments.filter((payment) => payment.invoiceId === invoice.id).reduce((sum, payment) => sum + payment.amount, 0) ? 'PAID' : 'PARTIALLY_PAID' } : item));
+      setPaymentForm({ invoiceId: '', amount: '', paymentMethod: 'CASH' });
+      setShowPaymentForm(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to record payment.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const totalOutstanding = invoices.reduce((sum, invoice) => sum + (invoice.status === 'PAID' ? 0 : invoice.total), 0);
 
   return (
@@ -98,11 +129,23 @@ const FinanceOverview = () => {
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">Finance</p>
             <h1 className="mt-2 text-3xl font-bold">Fees & Payments</h1>
           </div>
-          <button type="button" onClick={() => setShowInvoiceForm((current) => !current)} className="rounded-xl bg-brand-600 px-5 py-3 font-semibold text-white shadow-soft">Generate invoice</button>
+          <div className="flex gap-3"><button type="button" onClick={() => setShowInvoiceForm((current) => !current)} className="rounded-xl bg-brand-600 px-5 py-3 font-semibold text-white shadow-soft">Generate invoice</button><button type="button" onClick={() => setShowPaymentForm((current) => !current)} className="rounded-xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-700 shadow-soft">Record payment</button></div>
         </div>
 
         {error ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{error}</div>
+        ) : null}
+
+        {showPaymentForm ? (
+          <form onSubmit={recordPayment} className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
+            <h2 className="text-lg font-semibold">Record payment</h2>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <select required value={paymentForm.invoiceId} onChange={(event) => setPaymentForm({ ...paymentForm, invoiceId: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2"><option value="">Select invoice</option>{invoices.filter((invoice) => invoice.status !== 'PAID').map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.invoiceNumber} - {invoice.studentName} ({formatCurrency(invoice.total)})</option>)}</select>
+              <input required min="0.01" step="0.01" type="number" placeholder="Amount" value={paymentForm.amount} onChange={(event) => setPaymentForm({ ...paymentForm, amount: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" />
+              <select value={paymentForm.paymentMethod} onChange={(event) => setPaymentForm({ ...paymentForm, paymentMethod: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2"><option>CASH</option><option>BANK</option><option>MOBILE_MONEY</option></select>
+            </div>
+            <button disabled={saving} className="mt-4 rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white disabled:opacity-60">{saving ? 'Processing...' : 'Confirm payment'}</button>
+          </form>
         ) : null}
 
         {showInvoiceForm ? (
