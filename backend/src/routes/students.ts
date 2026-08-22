@@ -39,7 +39,9 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
 
   const [students, schools] = await Promise.all([getStudents(), getSchools()]);
   const schoolId = req.user?.role === 'SUPER_ADMIN' ? req.query.schoolId ?? 's-1' : req.user?.schoolId ?? 's-1';
-  const filtered = students.filter((student) => student.schoolId === schoolId);
+  const query = typeof req.query.search === 'string' ? req.query.search.toLowerCase() : '';
+  const filtered = students.filter((student) => student.schoolId === schoolId && (!query
+    || `${student.firstName} ${student.middleName ?? ''} ${student.lastName} ${student.admissionNumber}`.toLowerCase().includes(query)));
 
   return sendSuccess(res, { students: filtered, total: filtered.length, schools }, 'Students loaded');
 });
