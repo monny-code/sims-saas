@@ -14,7 +14,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ORIGIN
-        value: https://your-netlify-app.netlify.app
+        value: https://aa3d9d4b.sims-saas.pages.dev
       - key: APP_NAME
         value: SIMS
       - key: SUPABASE_URL
