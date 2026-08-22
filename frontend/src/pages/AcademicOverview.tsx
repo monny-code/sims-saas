@@ -13,7 +13,7 @@ type AcademicItem = {
   grade?: string;
 };
 type Student = { id: string; firstName: string; lastName: string };
-type Exam = { id: string; name: string };
+type Exam = { id: string; name: string; academicYearId?: string; term?: string; className?: string; examDate?: string; status?: string };
 type AcademicClass = { id: string; name: string; level: string; academicYearId: string };
 
 const AcademicOverview = () => {
@@ -26,6 +26,7 @@ const AcademicOverview = () => {
   const [classes, setClasses] = useState<AcademicClass[]>([]);
   const [streamName, setStreamName] = useState('');
   const [classForm, setClassForm] = useState({ name: '', level: 'Secondary', academicYearId: '' });
+  const [examForm, setExamForm] = useState({ name: '', academicYearId: '', term: 'Term 1', className: '', examDate: '' });
   const [attendanceForm, setAttendanceForm] = useState({ studentId: '', date: '', status: 'PRESENT', reason: '' });
   const [markForm, setMarkForm] = useState({ studentId: '', examId: '', subject: '', marks: '', remarks: '' });
   const [saving, setSaving] = useState(false);
@@ -49,6 +50,7 @@ const AcademicOverview = () => {
         setExams(examRes.exams);
         setClasses(classRes.classes);
         setClassForm((current) => ({ ...current, academicYearId: classRes.classes[0]?.academicYearId ?? '' }));
+        setExamForm((current) => ({ ...current, academicYearId: classRes.classes[0]?.academicYearId ?? '' }));
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load academic data.');
       }
@@ -67,6 +69,12 @@ const AcademicOverview = () => {
     event.preventDefault(); setSaving(true); setError('');
     try { await apiFetch('/academics/streams', { method: 'POST', body: JSON.stringify({ name: streamName }) }); setStreamName(''); }
     catch (err) { setError(err instanceof Error ? err.message : 'Unable to create stream.'); } finally { setSaving(false); }
+  };
+
+  const createExam = async (event: FormEvent) => {
+    event.preventDefault(); setSaving(true); setError('');
+    try { const result = await apiFetch<{ exam: Exam }>('/academics/exams', { method: 'POST', body: JSON.stringify(examForm) }); setExams((current) => [...current, result.exam]); setExamForm({ ...examForm, name: '', examDate: '' }); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Unable to create exam.'); } finally { setSaving(false); }
   };
 
   const recordAttendance = async (event: FormEvent) => {
@@ -127,6 +135,8 @@ const AcademicOverview = () => {
           <form onSubmit={createClass} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft"><h2 className="text-lg font-semibold">Add class</h2><div className="mt-4 grid gap-3 sm:grid-cols-3"><input required minLength={2} placeholder="Class name" value={classForm.name} onChange={(event) => setClassForm({ ...classForm, name: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Level" value={classForm.level} onChange={(event) => setClassForm({ ...classForm, level: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Academic year ID" value={classForm.academicYearId} onChange={(event) => setClassForm({ ...classForm, academicYearId: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /></div><button disabled={saving} className="mt-4 rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white">Create class</button><div className="mt-3 text-sm text-slate-500">{classes.length} classes configured</div></form>
           <form onSubmit={createStream} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft"><h2 className="text-lg font-semibold">Add stream</h2><div className="mt-4 flex gap-3"><input required placeholder="Stream name" value={streamName} onChange={(event) => setStreamName(event.target.value)} className="flex-1 rounded-xl border border-slate-200 px-3 py-2" /><button disabled={saving} className="rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white">Create stream</button></div></form>
         </div>
+
+        <form onSubmit={createExam} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft"><h2 className="text-lg font-semibold">Create exam</h2><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5"><input required minLength={2} placeholder="Exam name" value={examForm.name} onChange={(event) => setExamForm({ ...examForm, name: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Academic year ID" value={examForm.academicYearId} onChange={(event) => setExamForm({ ...examForm, academicYearId: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Term" value={examForm.term} onChange={(event) => setExamForm({ ...examForm, term: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Class name" value={examForm.className} onChange={(event) => setExamForm({ ...examForm, className: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required type="date" value={examForm.examDate} onChange={(event) => setExamForm({ ...examForm, examDate: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /></div><button disabled={saving} className="mt-4 rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white">Create exam</button></form>
 
         <div className="grid gap-6 lg:grid-cols-2">
           <form onSubmit={createSubject} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">

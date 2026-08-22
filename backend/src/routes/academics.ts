@@ -152,6 +152,29 @@ router.get('/exams', requireAuth, async (req: AuthenticatedRequest, res) => {
   return sendSuccess(res, { exams: filtered }, 'Exams loaded');
 });
 
+const examSchema = z.object({
+  name: z.string().min(2),
+  academicYearId: z.string().min(1),
+  term: z.string().min(1),
+  className: z.string().min(1),
+  examDate: z.string().min(1),
+});
+
+router.post('/exams', requireAuth, requirePermission('academics.manage'), async (req: AuthenticatedRequest, res) => {
+  const parsed = examSchema.safeParse(req.body);
+  if (!parsed.success) return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
+
+  const schoolId = req.user?.schoolId ?? 's-1';
+  const [years, classes, exams] = await Promise.all([getAcademicYears(), getAcademicClasses(), getExams()]);
+  if (!years.some((year) => year.id === parsed.data.academicYearId && year.schoolId === schoolId)) return sendError(res, 'Academic year not found', 404);
+  if (!classes.some((item) => item.name === parsed.data.className && item.schoolId === schoolId)) return sendError(res, 'Class not found', 404);
+  if (exams.some((exam) => exam.schoolId === schoolId && exam.name.toLowerCase() === parsed.data.name.toLowerCase() && exam.academicYearId === parsed.data.academicYearId && exam.className === parsed.data.className)) return sendError(res, 'Exam already exists', 409);
+
+  const exam = { id: `exam-${Date.now()}`, schoolId, status: 'DRAFT' as const, ...parsed.data };
+  await writeCollection('exams', [...exams, exam]);
+  return sendSuccess(res, { exam }, 'Exam created', 201);
+});
+
 router.get('/marks', requireAuth, requirePermission('marks.manage'), async (req: AuthenticatedRequest, res) => {
   const data = await getMarks();
   const filtered = data.filter((mark) => req.user?.role === 'SUPER_ADMIN' || mark.schoolId === req.user?.schoolId);
