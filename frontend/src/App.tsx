@@ -42,6 +42,30 @@ const defaultRouteForRole = (role: string) => {
   return '/reports';
 };
 
+const AdminNavigation = ({ user }: { user: SessionUser }) => {
+  const links = [
+    { label: 'Students', href: '/students', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'RECEPTIONIST'] },
+    { label: 'Academics', href: '/academics', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER'] },
+    { label: 'Fees', href: '/fees', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT'] },
+    { label: 'Reports', href: '/reports', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'ACCOUNTANT'] },
+    { label: 'Users', href: '/users', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN'] },
+    { label: 'Settings', href: '/settings', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN'] },
+  ].filter((link) => link.roles.includes(user.role));
+
+  return (
+    <nav className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-6 py-3 shadow-sm backdrop-blur">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 pr-20">
+        <a href="/" className="mr-3 text-lg font-bold text-brand-700">SIMS</a>
+        {links.map((link) => (
+          <a key={link.href} href={link.href} className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-brand-50 hover:text-brand-700">
+            {link.label}
+          </a>
+        ))}
+      </div>
+    </nav>
+  );
+};
+
 const LogoutButton = () => {
   const navigate = useNavigate();
 
@@ -78,7 +102,7 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: ReactNode; allow
     return <Navigate to={defaultRouteForRole(user.role)} replace />;
   }
 
-  return <><LogoutButton />{children}</>;
+  return <><AdminNavigation user={user} /><LogoutButton />{children}</>;
 };
 
 const RoleRoute = ({ children, allowedRoles }: { children: ReactNode; allowedRoles: string[] }) => {
@@ -92,7 +116,7 @@ const RoleRoute = ({ children, allowedRoles }: { children: ReactNode; allowedRol
     return <Navigate to={defaultRouteForRole(user.role)} replace />;
   }
 
-  return <><LogoutButton />{children}</>;
+  return <><AdminNavigation user={user} /><LogoutButton />{children}</>;
 };
 
 const LandingPage = () => (
