@@ -19,6 +19,9 @@ const SchoolManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalStudents, setTotalStudents] = useState(0);
   const [editing, setEditing] = useState<Student | null>(null);
   const [form, setForm] = useState({ firstName: '', lastName: '', gender: 'MALE', dateOfBirth: '', admissionNumber: '', className: '', stream: '' });
 
@@ -84,10 +87,13 @@ const SchoolManagement = () => {
         const query = user?.role === 'SUPER_ADMIN' && user.schoolId ? `?schoolId=${user.schoolId}` : '';
 
         const searchQuery = search ? `${query ? '&' : '?'}search=${encodeURIComponent(search)}` : '';
-        const response = await apiFetch<{ students: Student[] }>(`/students${query}${searchQuery}`, {
+        const pageQuery = `${query || searchQuery ? '&' : '?'}page=${page}&pageSize=20`;
+        const response = await apiFetch<{ students: Student[]; total: number; totalPages: number }>(`/students${query}${searchQuery}${pageQuery}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setStudents(response.students);
+        setTotalStudents(response.total);
+        setTotalPages(response.totalPages || 1);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unable to load students');
       } finally {
@@ -96,6 +102,10 @@ const SchoolManagement = () => {
     };
 
     void loadStudents();
+  }, [page, search]);
+
+  useEffect(() => {
+    setPage(1);
   }, [search]);
 
   return (
@@ -130,7 +140,7 @@ const SchoolManagement = () => {
         {editing ? <form onSubmit={updateStudent} className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-soft"><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-semibold">Edit student</h2><button type="button" onClick={() => setEditing(null)} className="text-sm text-slate-500">Cancel</button></div><div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"><input required minLength={2} value={editing.firstName} onChange={(event) => setEditing({ ...editing, firstName: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required minLength={2} value={editing.lastName} onChange={(event) => setEditing({ ...editing, lastName: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input value={editing.className ?? ''} onChange={(event) => setEditing({ ...editing, className: event.target.value })} placeholder="Class" className="rounded-xl border border-slate-200 px-3 py-2" /><input value={editing.stream ?? ''} onChange={(event) => setEditing({ ...editing, stream: event.target.value })} placeholder="Stream" className="rounded-xl border border-slate-200 px-3 py-2" /></div><button disabled={saving} className="mt-4 rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white disabled:opacity-60">{saving ? 'Saving...' : 'Save student'}</button></form> : null}
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-soft">
-          <div className="border-b border-slate-200 p-4"><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search students" className="w-full rounded-xl border border-slate-200 px-3 py-2 sm:max-w-sm" /></div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4"><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search students" className="w-full rounded-xl border border-slate-200 px-3 py-2 sm:max-w-sm" /><span className="text-sm text-slate-500">{totalStudents} students</span></div>
           <table className="min-w-full divide-y divide-slate-200 text-left">
             <thead className="bg-slate-100 text-sm text-slate-600">
               <tr>
@@ -162,6 +172,7 @@ const SchoolManagement = () => {
               )}
             </tbody>
           </table>
+          <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4 text-sm text-slate-600"><span>Page {page} of {totalPages}</span><div className="flex gap-2"><button type="button" disabled={page === 1 || loading} onClick={() => setPage(1)} className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40">First</button><button type="button" disabled={page === 1 || loading} onClick={() => setPage((current) => current - 1)} className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40">Previous</button><button type="button" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)} className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40">Next</button><button type="button" disabled={page >= totalPages || loading} onClick={() => setPage(totalPages)} className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40">Last</button></div></div>
         </div>
       </div>
     </div>

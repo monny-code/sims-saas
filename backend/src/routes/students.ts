@@ -40,10 +40,13 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res) => {
   const [students, schools] = await Promise.all([getStudents(), getSchools()]);
   const schoolId = req.user?.role === 'SUPER_ADMIN' ? req.query.schoolId ?? 's-1' : req.user?.schoolId ?? 's-1';
   const query = typeof req.query.search === 'string' ? req.query.search.toLowerCase() : '';
-  const filtered = students.filter((student) => student.schoolId === schoolId && (!query
+  const page = Math.max(Number(req.query.page ?? 1) || 1, 1);
+  const pageSize = Math.min(Math.max(Number(req.query.pageSize ?? 20) || 20, 1), 100);
+  const matchingStudents = students.filter((student) => student.schoolId === schoolId && (!query
     || `${student.firstName} ${student.middleName ?? ''} ${student.lastName} ${student.admissionNumber}`.toLowerCase().includes(query)));
+  const filtered = matchingStudents.slice((page - 1) * pageSize, page * pageSize);
 
-  return sendSuccess(res, { students: filtered, total: filtered.length, schools }, 'Students loaded');
+  return sendSuccess(res, { students: filtered, total: matchingStudents.length, page, pageSize, totalPages: Math.ceil(matchingStudents.length / pageSize), schools }, 'Students loaded');
 });
 
 router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res) => {
