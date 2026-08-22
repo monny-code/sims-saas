@@ -93,8 +93,8 @@ export const schools: DemoSchool[] = [
 ];
 
 export const rolePermissions: Record<Role, string[]> = {
-  SUPER_ADMIN: ['schools.manage', 'users.manage', 'students.manage', 'fees.manage', 'reports.view', 'academics.manage'],
-  SCHOOL_ADMIN: ['students.manage', 'teachers.manage', 'fees.manage', 'settings.manage', 'reports.view', 'attendance.manage', 'marks.manage', 'academics.manage'],
+  SUPER_ADMIN: ['schools.manage', 'users.manage', 'students.manage', 'fees.manage', 'reports.view', 'academics.manage', 'announcements.manage'],
+  SCHOOL_ADMIN: ['students.manage', 'teachers.manage', 'fees.manage', 'settings.manage', 'reports.view', 'attendance.manage', 'marks.manage', 'academics.manage', 'announcements.manage'],
   PRINCIPAL: ['students.view', 'academics.manage', 'reports.view'],
   TEACHER: ['attendance.manage', 'marks.manage', 'students.view', 'timetable.view'],
   ACCOUNTANT: ['fees.manage', 'invoices.manage', 'payments.manage', 'reports.view', 'students.view'],
@@ -403,3 +403,16 @@ export const feePayments: FeePayment[] = [
 export const receipts: Receipt[] = [
   { id: 'rcp-1', schoolId: 's-1', receiptNumber: 'RCP-1002', paymentId: 'pay-1', amount: 100000, issuedAt: '2026-08-20T10:05:00Z' },
 ];
+
+export type Announcement = {
+  id: string;
+  schoolId: string;
+  title: string;
+  message: string;
+  target: 'ALL' | 'PARENTS' | 'TEACHERS' | 'STUDENTS';
+  status: 'DRAFT' | 'PUBLISHED';
+  createdBy: string;
+  createdAt: string;
+};
+
+export const announcements: Announcement[] = [];

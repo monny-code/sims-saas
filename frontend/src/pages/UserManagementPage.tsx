@@ -5,7 +5,7 @@ type UserRecord = { id: string; name: string; email: string; role: string; schoo
 type UserForm = { name: string; email: string; password: string; role: string; permissions: string[] };
 
 const roles = ['SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'ACCOUNTANT', 'RECEPTIONIST', 'LIBRARIAN', 'PARENT', 'STUDENT'];
-const permissions = ['users.manage', 'students.manage', 'students.view', 'teachers.manage', 'fees.manage', 'invoices.manage', 'payments.manage', 'reports.view', 'settings.manage', 'attendance.manage', 'marks.manage', 'academics.manage', 'admissions.manage', 'notifications.send', 'library.manage', 'children.view', 'fees.view', 'results.view', 'profile.view', 'timetable.view'];
+const permissions = ['users.manage', 'students.manage', 'students.view', 'teachers.manage', 'fees.manage', 'invoices.manage', 'payments.manage', 'reports.view', 'settings.manage', 'attendance.manage', 'marks.manage', 'academics.manage', 'admissions.manage', 'notifications.send', 'announcements.manage', 'library.manage', 'children.view', 'fees.view', 'results.view', 'profile.view', 'timetable.view'];
 const roleDefaults: Record<string, string[]> = {
   SCHOOL_ADMIN: ['students.manage', 'teachers.manage', 'fees.manage', 'settings.manage', 'reports.view', 'attendance.manage', 'marks.manage'],
   PRINCIPAL: ['students.view', 'academics.manage', 'reports.view'],

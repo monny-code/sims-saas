@@ -10,6 +10,7 @@ import schoolRoutes from './routes/schools.js';
 import studentRoutes from './routes/students.js';
 import feeRoutes from './routes/fees.js';
 import reportRoutes from './routes/reports.js';
+import announcementRoutes from './routes/announcements.js';
 import { ensureSupabaseSeeded } from './services/supabaseDataStore.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
@@ -53,6 +54,7 @@ app.use('/api/v1/students', studentRoutes);
 app.use('/api/v1/academics', academicRoutes);
 app.use('/api/v1/fees', feeRoutes);
 app.use('/api/v1/reports', reportRoutes);
+app.use('/api/v1/announcements', announcementRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

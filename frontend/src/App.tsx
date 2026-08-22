@@ -11,6 +11,7 @@ import SettingsPage from './pages/SettingsPage';
 import UserManagementPage from './pages/UserManagementPage';
 import TeachersPage from './pages/TeachersPage';
 import StudentProfilePage from './pages/StudentProfilePage';
+import AnnouncementsPage from './pages/AnnouncementsPage';
 
 type SessionUser = {
   id: string;
@@ -54,6 +55,7 @@ const AdminNavigation = ({ user }: { user: SessionUser }) => {
     { label: 'Reports', href: '/reports', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'ACCOUNTANT'] },
     { label: 'Users', href: '/users', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN'] },
     { label: 'Settings', href: '/settings', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN'] },
+    { label: 'Announcements', href: '/announcements', roles: ['SUPER_ADMIN', 'SCHOOL_ADMIN'] },
   ].filter((link) => link.roles.includes(user.role));
 
   return (
@@ -483,6 +485,7 @@ const App = () => (
     <Route path="/reports" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN', 'PRINCIPAL', 'ACCOUNTANT']}><ReportsDashboard /></ProtectedRoute>} />
     <Route path="/settings" element={<RoleRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN']}><SettingsPage /></RoleRoute>} />
     <Route path="/users" element={<RoleRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN']}><UserManagementPage /></RoleRoute>} />
+    <Route path="/announcements" element={<RoleRoute allowedRoles={['SUPER_ADMIN', 'SCHOOL_ADMIN']}><AnnouncementsPage /></RoleRoute>} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
 );

@@ -14,6 +14,7 @@ import {
   students,
   subjects,
   users,
+  announcements,
 } from '../data/demoData.js';
 import { supabase, isSupabaseEnabled } from '../config/supabase.js';
 import { env } from '../config/env.js';
@@ -111,6 +112,7 @@ export const getFeeStructures = async () => seedCollection<typeof feeStructures[
 export const getInvoices = async () => seedCollection<typeof invoices[number]>('invoices', invoices);
 export const getFeePayments = async () => seedCollection<typeof feePayments[number]>('feePayments', feePayments);
 export const getReceipts = async () => seedCollection<typeof receipts[number]>('receipts', receipts);
+export const getAnnouncements = async () => seedCollection<typeof announcements[number]>('announcements', announcements);
 
 export const ensureSupabaseSeeded = async () => {
   if (!isSupabaseEnabled || !supabase) {
@@ -134,6 +136,7 @@ export const ensureSupabaseSeeded = async () => {
     getInvoices(),
     getFeePayments(),
     getReceipts(),
+    getAnnouncements(),
   ]);
 };
 

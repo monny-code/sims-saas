@@ -15,6 +15,7 @@ type ParentPortalData = {
 };
 type Result = { id: string; studentName: string; subject: string; marks: number; grade: string; examId: string };
 type Payment = { id: string; invoiceId: string; amount: number; paymentMethod: string; paymentReference: string; paidAt?: string };
+type Announcement = { id: string; title: string; message: string };
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-US', {
@@ -29,6 +30,7 @@ const PortalDashboard = () => {
   const [error, setError] = useState('');
   const [results, setResults] = useState<Result[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   useEffect(() => {
     const token = localStorage.getItem('sims_token');
@@ -41,8 +43,8 @@ const PortalDashboard = () => {
 
     Promise.all([apiFetch<{ children: Child[]; notices: string[]; feeSummary: { due: number; paid: number } }>('/reports/parent-portal', {
       headers: { Authorization: `Bearer ${token}` },
-    }), apiFetch<{ results: Result[] }>('/reports/parent-results', { headers: { Authorization: `Bearer ${token}` } }), apiFetch<{ payments: Payment[] }>('/fees/payments', { headers: { Authorization: `Bearer ${token}` } })])
-      .then(([result, resultData, paymentData]) => {
+    }), apiFetch<{ results: Result[] }>('/reports/parent-results', { headers: { Authorization: `Bearer ${token}` } }), apiFetch<{ payments: Payment[] }>('/fees/payments', { headers: { Authorization: `Bearer ${token}` } }), apiFetch<{ announcements: Announcement[] }>('/announcements', { headers: { Authorization: `Bearer ${token}` } })])
+      .then(([result, resultData, paymentData, announcementData]) => {
         setData({
           children: result.children ?? [],
           notices: result.notices ?? [],
@@ -50,6 +52,7 @@ const PortalDashboard = () => {
         });
         setResults(resultData.results ?? []);
         setPayments(paymentData.payments ?? []);
+        setAnnouncements(announcementData.announcements ?? []);
       })
       .catch(() => {
         setError('Unable to load parent portal data.');
@@ -109,6 +112,7 @@ const PortalDashboard = () => {
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft"><h2 className="text-xl font-semibold">Published results</h2><div className="mt-4 space-y-3">{loading ? <div className="text-slate-500">Loading...</div> : results.length ? results.map((result) => <div key={result.id} className="flex items-center justify-between rounded-xl border border-slate-200 p-3"><div><div className="font-semibold">{result.studentName}</div><div className="text-sm text-slate-500">{result.subject}</div></div><div className="text-right"><div className="font-semibold text-brand-700">{result.marks} ({result.grade})</div><div className="text-xs text-slate-500">Exam {result.examId}</div></div></div>) : <div className="text-slate-500">No published results available.</div>}</div></div>
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft"><h2 className="text-xl font-semibold">Payment history</h2><div className="mt-4 space-y-3">{loading ? <div className="text-slate-500">Loading...</div> : payments.length ? payments.map((payment) => <div key={payment.id} className="flex items-center justify-between rounded-xl border border-slate-200 p-3"><div><div className="font-semibold">{formatCurrency(payment.amount)}</div><div className="text-sm text-slate-500">{payment.paymentMethod} · {payment.paymentReference}</div></div><div className="text-xs text-slate-500">{payment.paidAt ? new Date(payment.paidAt).toLocaleDateString() : 'Pending date'}</div></div>) : <div className="text-slate-500">No payments recorded.</div>}</div></div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft"><h2 className="text-xl font-semibold">Announcements</h2><div className="mt-4 space-y-3">{loading ? <div className="text-slate-500">Loading...</div> : announcements.length ? announcements.map((announcement) => <article key={announcement.id} className="rounded-xl bg-slate-50 p-3"><div className="font-semibold">{announcement.title}</div><div className="mt-1 text-sm text-slate-600">{announcement.message}</div></article>) : <div className="text-slate-500">No announcements.</div>}</div></div>
         </div>
       </div>
     </div>

@@ -207,7 +207,7 @@ const managedPermissionSchema = z.enum([
   'schools.manage', 'users.manage', 'students.manage', 'students.view', 'teachers.manage',
   'fees.manage', 'invoices.manage', 'payments.manage', 'reports.view', 'settings.manage',
   'attendance.manage', 'marks.manage', 'academics.manage', 'admissions.manage',
-  'notifications.send', 'library.manage', 'children.view', 'fees.view', 'results.view',
+  'notifications.send', 'announcements.manage', 'library.manage', 'children.view', 'fees.view', 'results.view',
   'profile.view', 'timetable.view',
 ]);
 const createManagedUserSchema = z.object({
