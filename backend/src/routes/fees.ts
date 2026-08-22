@@ -56,6 +56,18 @@ router.get('/structures', requireAuth, async (req: AuthenticatedRequest, res) =>
   return sendSuccess(res, { structures: data }, 'Fee structures loaded');
 });
 
+router.post('/structures', requireAuth, async (req: AuthenticatedRequest, res) => {
+  if (!canManageFees(req)) return sendError(res, 'Forbidden: missing fee permission', 403);
+  const parsed = z.object({ academicYearId: z.string().min(1), className: z.string().min(1), feeName: z.string().min(2), amount: z.number().positive(), frequency: z.string().min(1), dueDate: z.string().min(1) }).safeParse(req.body);
+  if (!parsed.success) return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
+  const structures = await getFeeStructures();
+  const schoolId = req.user?.schoolId ?? 's-1';
+  if (structures.some((structure) => structure.schoolId === schoolId && structure.academicYearId === parsed.data.academicYearId && structure.className === parsed.data.className && structure.feeName.toLowerCase() === parsed.data.feeName.toLowerCase())) return sendError(res, 'Fee structure already exists', 409);
+  const structure = { id: `fs-${Date.now()}`, schoolId, ...parsed.data };
+  await writeCollection('feeStructures', [...structures, structure]);
+  return sendSuccess(res, { structure }, 'Fee structure created', 201);
+});
+
 router.get('/invoices', requireAuth, async (req: AuthenticatedRequest, res) => {
   const students = await getStudents();
   const data = await filterStudentAccess(req, filterBySchool(req, await getInvoices()), students);

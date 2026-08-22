@@ -42,6 +42,8 @@ const FinanceOverview = () => {
   const [payments, setPayments] = useState<FeePayment[]>([]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ invoiceId: '', amount: '', paymentMethod: 'CASH' });
+  const [showStructureForm, setShowStructureForm] = useState(false);
+  const [structureForm, setStructureForm] = useState({ academicYearId: '', className: '', feeName: '', amount: '', frequency: 'Termly', dueDate: '' });
 
   useEffect(() => {
     const token = localStorage.getItem('sims_token');
@@ -119,6 +121,12 @@ const FinanceOverview = () => {
     }
   };
 
+  const createStructure = async (event: FormEvent) => {
+    event.preventDefault(); setSaving(true); setError('');
+    try { const result = await apiFetch<{ structure: FeeStructure }>('/fees/structures', { method: 'POST', body: JSON.stringify({ ...structureForm, amount: Number(structureForm.amount) }) }); setStructures((current) => [...current, result.structure]); setStructureForm({ ...structureForm, feeName: '', amount: '', dueDate: '' }); setShowStructureForm(false); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Unable to create fee structure.'); } finally { setSaving(false); }
+  };
+
   const totalOutstanding = invoices.reduce((sum, invoice) => sum + (invoice.status === 'PAID' ? 0 : invoice.total), 0);
 
   return (
@@ -129,7 +137,7 @@ const FinanceOverview = () => {
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">Finance</p>
             <h1 className="mt-2 text-3xl font-bold">Fees & Payments</h1>
           </div>
-          <div className="flex gap-3"><button type="button" onClick={() => setShowInvoiceForm((current) => !current)} className="rounded-xl bg-brand-600 px-5 py-3 font-semibold text-white shadow-soft">Generate invoice</button><button type="button" onClick={() => setShowPaymentForm((current) => !current)} className="rounded-xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-700 shadow-soft">Record payment</button></div>
+          <div className="flex flex-wrap gap-3"><button type="button" onClick={() => setShowStructureForm((current) => !current)} className="rounded-xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-700 shadow-soft">Add fee structure</button><button type="button" onClick={() => setShowInvoiceForm((current) => !current)} className="rounded-xl bg-brand-600 px-5 py-3 font-semibold text-white shadow-soft">Generate invoice</button><button type="button" onClick={() => setShowPaymentForm((current) => !current)} className="rounded-xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-700 shadow-soft">Record payment</button></div>
         </div>
 
         {error ? (
@@ -147,6 +155,8 @@ const FinanceOverview = () => {
             <button disabled={saving} className="mt-4 rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white disabled:opacity-60">{saving ? 'Processing...' : 'Confirm payment'}</button>
           </form>
         ) : null}
+
+        {showStructureForm ? <form onSubmit={createStructure} className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-soft"><h2 className="text-lg font-semibold">Add fee structure</h2><div className="mt-4 grid gap-4 md:grid-cols-3"><input required placeholder="Academic year ID" value={structureForm.academicYearId} onChange={(event) => setStructureForm({ ...structureForm, academicYearId: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Class name" value={structureForm.className} onChange={(event) => setStructureForm({ ...structureForm, className: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Fee name" value={structureForm.feeName} onChange={(event) => setStructureForm({ ...structureForm, feeName: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required min="0.01" type="number" placeholder="Amount" value={structureForm.amount} onChange={(event) => setStructureForm({ ...structureForm, amount: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Frequency" value={structureForm.frequency} onChange={(event) => setStructureForm({ ...structureForm, frequency: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required type="date" value={structureForm.dueDate} onChange={(event) => setStructureForm({ ...structureForm, dueDate: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /></div><button disabled={saving} className="mt-4 rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white">Create structure</button></form> : null}
 
         {showInvoiceForm ? (
           <form onSubmit={createInvoice} className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
