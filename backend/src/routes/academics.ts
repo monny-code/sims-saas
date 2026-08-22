@@ -19,6 +19,33 @@ router.get('/years', requireAuth, async (req: AuthenticatedRequest, res) => {
   return sendSuccess(res, { academicYears: filtered }, 'Academic years loaded');
 });
 
+const yearSchema = z.object({ name: z.string().min(4), startDate: z.string().min(1), endDate: z.string().min(1) });
+router.post('/years', requireAuth, requirePermission('academics.manage'), async (req: AuthenticatedRequest, res) => {
+  const parsed = yearSchema.safeParse(req.body);
+  if (!parsed.success) return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
+  const years = await getAcademicYears();
+  const schoolId = req.user?.schoolId ?? 's-1';
+  if (years.some((year) => year.schoolId === schoolId && year.name === parsed.data.name)) return sendError(res, 'Academic year already exists', 409);
+  const year = { id: `ay-${Date.now()}`, schoolId, status: 'UPCOMING' as const, ...parsed.data };
+  await writeCollection('academicYears', [...years, year]);
+  return sendSuccess(res, { academicYear: year }, 'Academic year created', 201);
+});
+
+router.patch('/years/:id/status', requireAuth, requirePermission('academics.manage'), async (req: AuthenticatedRequest, res) => {
+  const parsed = z.object({ status: z.enum(['ACTIVE', 'UPCOMING', 'CLOSED']) }).safeParse(req.body);
+  if (!parsed.success) return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
+  const years = await getAcademicYears();
+  const index = years.findIndex((year) => year.id === req.params.id);
+  if (index === -1) return sendError(res, 'Academic year not found', 404);
+  const target = years[index];
+  if (req.user?.role !== 'SUPER_ADMIN' && target.schoolId !== req.user?.schoolId) return sendError(res, 'Forbidden: academic year access denied', 403);
+  if (parsed.data.status === 'ACTIVE' && years.some((year) => year.schoolId === target.schoolId && year.id !== target.id && year.status === 'ACTIVE')) return sendError(res, 'Another academic year is already active', 409);
+  const updated = { ...target, status: parsed.data.status };
+  const nextYears = [...years]; nextYears[index] = updated;
+  await writeCollection('academicYears', nextYears);
+  return sendSuccess(res, { academicYear: updated }, 'Academic year status updated');
+});
+
 router.get('/classes', requireAuth, async (req: AuthenticatedRequest, res) => {
   const data = await getAcademicClasses();
   const filtered = data.filter((cls) => req.user?.role === 'SUPER_ADMIN' || cls.schoolId === req.user?.schoolId);

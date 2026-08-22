@@ -15,6 +15,7 @@ type AcademicItem = {
 type Student = { id: string; firstName: string; lastName: string };
 type Exam = { id: string; name: string; academicYearId?: string; term?: string; className?: string; examDate?: string; status?: string };
 type AcademicClass = { id: string; name: string; level: string; academicYearId: string };
+type AcademicYear = { id: string; name: string; startDate: string; endDate: string; status: string };
 
 const AcademicOverview = () => {
   const [subjects, setSubjects] = useState<AcademicItem[]>([]);
@@ -27,6 +28,8 @@ const AcademicOverview = () => {
   const [streamName, setStreamName] = useState('');
   const [classForm, setClassForm] = useState({ name: '', level: 'Secondary', academicYearId: '' });
   const [examForm, setExamForm] = useState({ name: '', academicYearId: '', term: 'Term 1', className: '', examDate: '' });
+  const [years, setYears] = useState<AcademicYear[]>([]);
+  const [yearForm, setYearForm] = useState({ name: '', startDate: '', endDate: '' });
   const [attendanceForm, setAttendanceForm] = useState({ studentId: '', date: '', status: 'PRESENT', reason: '' });
   const [markForm, setMarkForm] = useState({ studentId: '', examId: '', subject: '', marks: '', remarks: '' });
   const [saving, setSaving] = useState(false);
@@ -35,13 +38,14 @@ const AcademicOverview = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [subjectsRes, attendanceRes, marksRes, studentRes, examRes, classRes] = await Promise.all([
+        const [subjectsRes, attendanceRes, marksRes, studentRes, examRes, classRes, yearRes] = await Promise.all([
           apiFetch<{ subjects: AcademicItem[] }>('/academics/subjects'),
           apiFetch<{ attendance: AcademicItem[] }>('/academics/attendance'),
           apiFetch<{ marks: AcademicItem[] }>('/academics/marks'),
           apiFetch<{ students: Student[] }>('/students'),
           apiFetch<{ exams: Exam[] }>('/academics/exams'),
           apiFetch<{ classes: AcademicClass[] }>('/academics/classes'),
+          apiFetch<{ academicYears: AcademicYear[] }>('/academics/years'),
         ]);
         setSubjects(subjectsRes.subjects);
         setAttendance(attendanceRes.attendance);
@@ -49,6 +53,7 @@ const AcademicOverview = () => {
         setStudents(studentRes.students);
         setExams(examRes.exams);
         setClasses(classRes.classes);
+        setYears(yearRes.academicYears);
         setClassForm((current) => ({ ...current, academicYearId: classRes.classes[0]?.academicYearId ?? '' }));
         setExamForm((current) => ({ ...current, academicYearId: classRes.classes[0]?.academicYearId ?? '' }));
       } catch (loadError) {
@@ -75,6 +80,12 @@ const AcademicOverview = () => {
     event.preventDefault(); setSaving(true); setError('');
     try { const result = await apiFetch<{ exam: Exam }>('/academics/exams', { method: 'POST', body: JSON.stringify(examForm) }); setExams((current) => [...current, result.exam]); setExamForm({ ...examForm, name: '', examDate: '' }); }
     catch (err) { setError(err instanceof Error ? err.message : 'Unable to create exam.'); } finally { setSaving(false); }
+  };
+
+  const createYear = async (event: FormEvent) => {
+    event.preventDefault(); setSaving(true); setError('');
+    try { const result = await apiFetch<{ academicYear: AcademicYear }>('/academics/years', { method: 'POST', body: JSON.stringify(yearForm) }); setYears((current) => [...current, result.academicYear]); setYearForm({ name: '', startDate: '', endDate: '' }); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Unable to create academic year.'); } finally { setSaving(false); }
   };
 
   const recordAttendance = async (event: FormEvent) => {
@@ -130,6 +141,10 @@ const AcademicOverview = () => {
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Overview</h1>
         </div>
         {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <form onSubmit={createYear} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft"><h2 className="text-lg font-semibold">Add academic year</h2><div className="mt-4 grid gap-3 sm:grid-cols-3"><input required placeholder="Year name" value={yearForm.name} onChange={(event) => setYearForm({ ...yearForm, name: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required type="date" value={yearForm.startDate} onChange={(event) => setYearForm({ ...yearForm, startDate: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required type="date" value={yearForm.endDate} onChange={(event) => setYearForm({ ...yearForm, endDate: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /></div><button disabled={saving} className="mt-4 rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white">Create year</button><div className="mt-3 text-sm text-slate-500">{years.length} academic years configured</div></form>
+        </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
           <form onSubmit={createClass} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft"><h2 className="text-lg font-semibold">Add class</h2><div className="mt-4 grid gap-3 sm:grid-cols-3"><input required minLength={2} placeholder="Class name" value={classForm.name} onChange={(event) => setClassForm({ ...classForm, name: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Level" value={classForm.level} onChange={(event) => setClassForm({ ...classForm, level: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Academic year ID" value={classForm.academicYearId} onChange={(event) => setClassForm({ ...classForm, academicYearId: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /></div><button disabled={saving} className="mt-4 rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white">Create class</button><div className="mt-3 text-sm text-slate-500">{classes.length} classes configured</div></form>
