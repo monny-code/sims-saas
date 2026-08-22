@@ -82,6 +82,15 @@ const AcademicOverview = () => {
     catch (err) { setError(err instanceof Error ? err.message : 'Unable to create exam.'); } finally { setSaving(false); }
   };
 
+  const updateExamStatus = async (exam: Exam) => {
+    setSaving(true); setError('');
+    try {
+      const status = exam.status === 'DRAFT' ? 'OPEN' : exam.status === 'OPEN' ? 'CLOSED' : 'DRAFT';
+      const result = await apiFetch<{ exam: Exam }>(`/academics/exams/${exam.id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+      setExams((current) => current.map((item) => item.id === result.exam.id ? result.exam : item));
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to update exam status.'); } finally { setSaving(false); }
+  };
+
   const createYear = async (event: FormEvent) => {
     event.preventDefault(); setSaving(true); setError('');
     try { const result = await apiFetch<{ academicYear: AcademicYear }>('/academics/years', { method: 'POST', body: JSON.stringify(yearForm) }); setYears((current) => [...current, result.academicYear]); setYearForm({ name: '', startDate: '', endDate: '' }); }
@@ -152,6 +161,8 @@ const AcademicOverview = () => {
         </div>
 
         <form onSubmit={createExam} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft"><h2 className="text-lg font-semibold">Create exam</h2><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5"><input required minLength={2} placeholder="Exam name" value={examForm.name} onChange={(event) => setExamForm({ ...examForm, name: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Academic year ID" value={examForm.academicYearId} onChange={(event) => setExamForm({ ...examForm, academicYearId: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Term" value={examForm.term} onChange={(event) => setExamForm({ ...examForm, term: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required placeholder="Class name" value={examForm.className} onChange={(event) => setExamForm({ ...examForm, className: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /><input required type="date" value={examForm.examDate} onChange={(event) => setExamForm({ ...examForm, examDate: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2" /></div><button disabled={saving} className="mt-4 rounded-xl bg-brand-600 px-4 py-2 font-semibold text-white">Create exam</button></form>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft"><h2 className="text-lg font-semibold">Exam lifecycle</h2><div className="mt-4 space-y-3">{exams.length ? exams.map((exam) => <div key={exam.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"><div><div className="font-semibold">{exam.name}</div><div className="text-sm text-slate-500">{exam.className} · {exam.term} · {exam.examDate}</div></div><button type="button" disabled={saving} onClick={() => void updateExamStatus(exam)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium">{exam.status} · {exam.status === 'DRAFT' ? 'Open' : exam.status === 'OPEN' ? 'Publish' : 'Reopen'}</button></div>) : <div className="text-sm text-slate-500">No exams configured.</div>}</div></section>
 
         <div className="grid gap-6 lg:grid-cols-2">
           <form onSubmit={createSubject} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">

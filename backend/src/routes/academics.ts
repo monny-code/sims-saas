@@ -202,6 +202,20 @@ router.post('/exams', requireAuth, requirePermission('academics.manage'), async 
   return sendSuccess(res, { exam }, 'Exam created', 201);
 });
 
+router.patch('/exams/:id/status', requireAuth, requirePermission('academics.manage'), async (req: AuthenticatedRequest, res) => {
+  const parsed = z.object({ status: z.enum(['DRAFT', 'OPEN', 'CLOSED']) }).safeParse(req.body);
+  if (!parsed.success) return sendError(res, 'Validation failed', 400, parsed.error.issues.map((issue) => issue.message));
+  const exams = await getExams();
+  const index = exams.findIndex((exam) => exam.id === req.params.id);
+  if (index === -1) return sendError(res, 'Exam not found', 404);
+  const target = exams[index];
+  if (req.user?.role !== 'SUPER_ADMIN' && target.schoolId !== req.user?.schoolId) return sendError(res, 'Forbidden: exam access denied', 403);
+  const exam = { ...target, status: parsed.data.status };
+  const nextExams = [...exams]; nextExams[index] = exam;
+  await writeCollection('exams', nextExams);
+  return sendSuccess(res, { exam }, 'Exam status updated');
+});
+
 router.get('/marks', requireAuth, requirePermission('marks.manage'), async (req: AuthenticatedRequest, res) => {
   const data = await getMarks();
   const filtered = data.filter((mark) => req.user?.role === 'SUPER_ADMIN' || mark.schoolId === req.user?.schoolId);
