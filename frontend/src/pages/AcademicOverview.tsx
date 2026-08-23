@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react';
-import ErrorBoundary from '../components/ErrorBoundary';
+import ErrorBoundary from '../components/ErrorBoundary.tsx';
 import { apiFetch } from '../lib/api';
 
 type AcademicItem = {
