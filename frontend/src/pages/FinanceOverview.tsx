@@ -130,7 +130,8 @@ const FinanceOverview = () => {
   const totalOutstanding = invoices.reduce((sum, invoice) => sum + (invoice.status === 'PAID' ? 0 : invoice.total), 0);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8 text-slate-900">
+    <ErrorBoundary fallback={<div>Something went wrong.</div>}>
+      <div className="min-h-screen bg-slate-50 p-8 text-slate-900">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -225,7 +226,8 @@ const FinanceOverview = () => {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 };
 

@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { apiFetch } from '../lib/api';
 
 type AcademicItem = {
@@ -143,7 +144,8 @@ const AcademicOverview = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
+    <ErrorBoundary fallback={<div>Something went wrong.</div>}>
+      <div className="min-h-screen bg-slate-50 p-6">
       <div className="mx-auto max-w-7xl space-y-6">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">Academic management</p>
@@ -243,7 +245,8 @@ const AcademicOverview = () => {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 };
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { apiFetch } from '../lib/api';
 
 type Child = {
@@ -61,7 +62,8 @@ const PortalDashboard = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8 text-slate-900">
+    <ErrorBoundary fallback={<div>Something went wrong.</div>}>
+      <div className="min-h-screen bg-slate-50 p-8 text-slate-900">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-700">Parent portal</p>
@@ -115,7 +117,8 @@ const PortalDashboard = () => {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft"><h2 className="text-xl font-semibold">Announcements</h2><div className="mt-4 space-y-3">{loading ? <div className="text-slate-500">Loading...</div> : announcements.length ? announcements.map((announcement) => <article key={announcement.id} className="rounded-xl bg-slate-50 p-3"><div className="font-semibold">{announcement.title}</div><div className="mt-1 text-sm text-slate-600">{announcement.message}</div></article>) : <div className="text-slate-500">No announcements.</div>}</div></div>
         </div>
       </div>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 };
 
