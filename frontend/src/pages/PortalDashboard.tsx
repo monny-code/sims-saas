@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import ErrorBoundary from '../components/ErrorBoundary.tsx';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { apiFetch } from '../lib/api';
 
 type Child = {
