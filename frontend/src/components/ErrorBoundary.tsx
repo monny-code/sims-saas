@@ -9,7 +9,8 @@ type Props = {
 };
 
 export default class ErrorBoundary extends Component<Props> {
-  state = { hasError: false, error?: Error };
+  // Explicitly type the state to satisfy TypeScript and esbuild
+  state = { hasError: false, error: undefined as Error | undefined };
 
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
@@ -26,4 +27,3 @@ export default class ErrorBoundary extends Component<Props> {
     return this.props.children;
   }
 }
-
