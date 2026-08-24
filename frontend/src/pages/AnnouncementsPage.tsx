@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import ErrorBoundary from '../components/ErrorBoundary.tsx';
+import ErrorBoundary from '../components';
 
 // A minimal placeholder for the Announcements page.
 // It currently renders a simple message. Replace with real UI later.
